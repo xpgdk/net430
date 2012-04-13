@@ -25,7 +25,7 @@
 								<option defaultValue="dk.xpg.msp430eclipse.compiler.option.optimization.level.none" id="dk.xpg.msp430eclipse.compiler.option.optimization.level.395868214" name="Optimization Level" superClass="dk.xpg.msp430eclipse.compiler.option.optimization.level" value="dk.xpg.msp430eclipse.compiler.option.optimization.level.size" valueType="enumerated"/>
 								<option defaultValue="dk.xpg.msp430eclipse.compiler.option.debugging.level.default" id="dk.xpg.msp430eclipse.compiler.option.debugging.level.162632469" name="Debugging Level" superClass="dk.xpg.msp430eclipse.compiler.option.debugging.level" valueType="enumerated"/>
 								<option id="dk.xpg.msp430eclipse.compiler.option.language.standard.1734140421" name="Standard" superClass="dk.xpg.msp430eclipse.compiler.option.language.standard" value="dk.xpg.msp430eclipse.compiler.option.language.standard.gnu99" valueType="enumerated"/>
-								<option id="dk.xpg.msp430eclipse.compiler.option.symbols.defined.1013307075" name="Defined Symbols (-D)" superClass="dk.xpg.msp430eclipse.compiler.option.symbols.defined" valueType="definedSymbols"/>
+								<option id="dk.xpg.msp430eclipse.compiler.option.symbols.defined.1013307075" name="Defined Symbols (-D)" superClass="dk.xpg.msp430eclipse.compiler.option.symbols.defined"/>
 								<inputType id="dk.xpg.msp430eclipse.tool.compiler.gcc.input.813608907" name="C Source File" superClass="dk.xpg.msp430eclipse.tool.compiler.gcc.input"/>
 								<inputType id="dk.xpg.msp430eclipse.tool.compiler.gcc.input.cc.1510190965" name="C++ Source File" superClass="dk.xpg.msp430eclipse.tool.compiler.gcc.input.cc"/>
 							</tool>
@@ -81,10 +81,16 @@
 	<storageModule moduleId="cdtBuildSystem" version="4.0.0">
 		<project id="ethernet430.dk.xpg.msp430eclipse.project.gcc.elf.2067799840" name="MSP430 Cross Target Application" projectType="dk.xpg.msp430eclipse.project.gcc.elf"/>
 	</storageModule>
-	<storageModule moduleId="scannerConfiguration">
-		<autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId=""/>
-	</storageModule>
 	<storageModule moduleId="refreshScope" versionNumber="1">
 		<resource resourceType="PROJECT" workspacePath="/ethernet430"/>
+	</storageModule>
+	<storageModule moduleId="scannerConfiguration">
+		<autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId=""/>
+		<scannerConfigBuildInfo instanceId="dk.xpg.msp430eclipse.configuration.app.debug.258803501;dk.xpg.msp430eclipse.configuration.app.debug.258803501.;dk.xpg.msp430eclipse.tool.compiler.gcc.167951311;dk.xpg.msp430eclipse.tool.compiler.gcc.input.813608907">
+			<autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId="dk.xpg.msp430eclipse.MSP430GCCManagedMakePerProjectProfileC"/>
+		</scannerConfigBuildInfo>
+		<scannerConfigBuildInfo instanceId="dk.xpg.msp430eclipse.configuration.app.debug.258803501;dk.xpg.msp430eclipse.configuration.app.debug.258803501.;dk.xpg.msp430eclipse.tool.compiler.gcc.167951311;dk.xpg.msp430eclipse.tool.compiler.gcc.input.cc.1510190965">
+			<autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId="dk.xpg.msp430eclipse.MSP430GCCManagedMakePerProjectProfileC"/>
+		</scannerConfigBuildInfo>
 	</storageModule>
 </cproject>
