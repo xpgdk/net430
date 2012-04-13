@@ -1,0 +1,7 @@
+#Tue Apr 10 19:11:56 CEST 2012
+eclipse.preferences.version=1
+msp430/MSP430TARGETMCU=msp430g2553
+msp430/MSPDebugConnection=USB
+msp430/MSPDebugDriver=rf2500
+msp430/MSPDebugProtocol=SBW
+msp430/MSPDebugTTYDevice=
