@@ -140,11 +140,12 @@ main(int argc, char *argv[]) {
 	}
 }
 
-uint8_t xmit_buffer[1500];
-uint8_t xmit_offset;
-bool defer = false;
-bool got_deferred = false;
-uint16_t deferred_size = 0;
+static uint8_t xmit_buffer[1500];
+static uint8_t xmit_offset;
+static bool defer = false;
+static bool got_deferred = false;
+static uint16_t deferred_size = 0;
+static uint16_t checksum_location;
 
 /*
  Start sending a buffer to the link-layer.
@@ -189,6 +190,25 @@ net_send_data(const uint8_t *buf, uint16_t count) {
 		memcpy(xmit_buffer+xmit_offset, buf, count);
 	}
 	xmit_offset += count;
+}
+
+void
+net_send_dummy_checksum(void) {
+	uint8_t null_buf[] = {0x00, 0x00};
+	checksum_location = xmit_offset;
+	net_send_data(null_buf, 2);
+}
+
+void
+net_send_replace_checksum(uint16_t checksum) {
+	uint8_t buf[2];
+	buf[0] = checksum >> 8;
+	buf[1] = checksum & 0xFF;
+	if (defer) {
+		mem_write(deferred_id, checksum_location, buf, 2);
+	} else {
+		memcpy(xmit_buffer+checksum_location, buf, 2);
+	}
 }
 
 void

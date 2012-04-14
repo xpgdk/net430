@@ -59,7 +59,6 @@ extern const uint8_t *enc_mac_addr;
 #define STATE_WAITING_ADVERTISMENT	3
 #define STATE_INVALID			4
 
-//#define CONV_32(b) ( ((*(b)) << 24) | ((*(b+1)) << 16) | ((*(b+2)) << 8) | (*(b+3)) )
 #define CONV_16(b) ( ((*(b+0)) << 8) | (*(b+1)) )
 
 static uint32_t CONV_32(uint8_t *buf) {
@@ -100,9 +99,11 @@ void net_send_data(const uint8_t *buf, uint16_t count);
 void net_send_end();
 void net_send_deferred(int16_t id, uint8_t const *dstMac);
 void net_drop_deferred(int16_t id);
+void net_send_dummy_checksum(void);
+void net_send_replace_checksum(uint16_t checksum);
 
 /* Send IPv6 header and perform checksum calculation according to the
-pseudo header used by UDP, TCP, and ICMP */
+   pseudo header used by UDP, TCP, and ICMP */
 void net_start_ipv6_packet(struct ipv6_packet_arg *arg);
 void net_end_ipv6_packet();
 

@@ -96,12 +96,9 @@ void handle_icmp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 		debug_puts("Got router advertisment\n");
 		uint8_t *c = payload + 12;
 		while (c < payload + length - 4) {
-			//printf("%p < %p\n, ", c, payload + length-4);
-			//printf("Option %d, length: %d\n", c[0], c[1]);
 			if (c[0] == 3) {
 				uint8_t prefixLength = c[2];
 				/* Prefix starts at offset 16 */
-				//printf("Addr / %d: ", prefixLength);
 				print_addr(c + 16);
 
 				if (ipv6_addr[0] == 0x00) {
@@ -129,7 +126,6 @@ void net_send_icmp(uint8_t type, uint8_t code, uint8_t *body,
 	 |                                                               |
 	 */
 
-	calc_checksum(body, body_length);
 	uint8_t buf[4];
 	buf[0] = type;
 	buf[1] = code;
@@ -137,12 +133,16 @@ void net_send_icmp(uint8_t type, uint8_t code, uint8_t *body,
 	buf[3] = 0;
 	calc_checksum(buf, 4);
 
-	checksum = ~checksum;
+	/*checksum = ~checksum;
 	buf[2] = (checksum >> 8) & 0XFF;
-	buf[3] = checksum & 0xFF;
-	net_send_data(buf, 4);
+	buf[3] = checksum & 0xFF;*/
+	net_send_data(buf, 2);
+	net_send_dummy_checksum();
 
 	net_send_data(body, body_length);
+	calc_checksum(body, body_length);
+
+	net_send_replace_checksum(~checksum);
 }
 
 void send_neighbor_solicitation(const uint8_t *dst_mac, const uint8_t *src_addr,
