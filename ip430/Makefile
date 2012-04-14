@@ -1,5 +1,5 @@
 CFLAGS=-std=gnu99 -g -O0 -DHAVE_TCP
-OBJS=stack.o tcp.o udp.o
+OBJS=stack.o tcp.o udp.o icmp.o
 
 ip430.a: $(OBJS)
 	ar r $@ $(OBJS)

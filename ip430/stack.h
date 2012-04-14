@@ -28,8 +28,14 @@ struct ipv6_packet_arg {
 
 extern const uint8_t	ether_bcast[];
 extern const uint8_t	null_mac[];
+extern const uint8_t	unspec_addr[];
 extern uint16_t		checksum;
 extern uint8_t		ipv6_addr[16];
+extern uint8_t		net_state;
+extern uint16_t default_route_mac_id;
+extern uint8_t addr_link[16]; /* Link local is special */
+extern uint8_t ipv6_addr[16]; /* TODO: Support multiple addresses */
+extern const uint8_t *enc_mac_addr;
 
 #define TYPE_IPV6 	0x86DD
 
@@ -46,6 +52,12 @@ extern uint8_t		ipv6_addr[16];
 
 #define SIZE_ICMP_HEADER		4
 #define SIZE_TCP_HEADER			20
+
+#define STATE_INIT			0
+#define STATE_DAD			1
+#define STATE_IDLE			2
+#define STATE_WAITING_ADVERTISMENT	3
+#define STATE_INVALID			4
 
 //#define CONV_32(b) ( ((*(b)) << 24) | ((*(b+1)) << 16) | ((*(b+2)) << 8) | (*(b+3)) )
 #define CONV_16(b) ( ((*(b+0)) << 8) | (*(b+1)) )
@@ -78,7 +90,6 @@ void net_tick(void);
 
 void handle_ethernet(struct etherheader *header, uint16_t length, DATA_CB dataCb, void *priv);
 void handle_ipv6(uint8_t *macSource, uint16_t length, DATA_CB dataCb, void *priv);
-void handle_icmp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr, uint16_t length, DATA_CB dataCb, void *priv);
 void print_buf(const uint8_t *data, unsigned int count);
 void print_addr(const uint8_t *addr);
 void calc_checksum(const uint8_t *buf, uint16_t count);
@@ -94,4 +105,7 @@ void net_drop_deferred(int16_t id);
 pseudo header used by UDP, TCP, and ICMP */
 void net_start_ipv6_packet(struct ipv6_packet_arg *arg);
 void net_end_ipv6_packet();
+
+void register_mac_addr(const uint8_t *mac, const uint8_t *addr);
+void assign_address_from_prefix(uint8_t *ipv6_addr, uint8_t prefixLength);
 #endif

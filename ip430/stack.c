@@ -8,52 +8,10 @@
 #include "tcp.h"
 #endif
 
+#include "icmp.h"
 #include "udp.h"
 #include "debug.h"
 #include "mem.h"
-
-//#define DEBUG
-//#define DEBUG_ETHERNET
-//#define DEBUG_IPV6
-//#define DEBUG_ICMP
-
-#ifdef DEBUG
-#define DPRINTF(x)	printf x
-#define DPRINTBUF(x)	print_buf x
-#define DPRINTADDR(x)	print_addr x
-#else
-#define	DPRINTF(x)
-#define DPRINTBUF(x)
-#define DPRINTADDR
-#endif
-
-#ifdef DEBUG_ETHERNET
-#define DPRINTF_ETHERNET(x)	printf x
-#define DPRINTBUF_ETHERNET(x)	print_buf x
-#define DPRINTADDR_ETHERNET(x)	print_addr x
-#else
-#define DPRINTF_ETHERNET(x)
-#define DPRINTBUF_ETHERNET(x)
-#define DPRINTADDR_ETHERNET(x)
-#endif
-
-#ifdef DEBUG_IPV6
-#define DPRINTF_IPV6(x)	printf x
-#define DPRINTBUF_IPV6(x)	print_buf x
-#define DPRINTADDR_IPV6(x)	print_addr x
-#else
-#define DPRINTF_IPV6(x)
-#define DPRINTBUF_IPV6(x)
-#define DPRINTADDR_IPV6(x)
-#endif
-
-#ifdef DEBUG_ICMP
-#define DPRINTF_ICMP(x)	printf x
-#define DPRINTBUF_ICMP(x)	print_buf x
-#else
-#define DPRINTF_ICMP(x)
-#define DPRINTBUF_ICMP(x)
-#endif
 
 struct addr_map_entry {
 	uint8_t mac[6];
@@ -63,12 +21,11 @@ struct addr_map_entry {
 /* State variables */
 uint16_t checksum;
 uint8_t addr_solicited[16];
-static const uint8_t *enc_mac_addr;
+const uint8_t *enc_mac_addr;
 uint8_t eui64[8];
 uint8_t net_state;
 uint8_t addr_link[16]; /* Link local is special */
 uint8_t ipv6_addr[16]; /* TODO: Support multiple addresses */
-
 uint16_t default_route_mac_id;
 
 static uint8_t const *address_lookup = NULL;
@@ -80,17 +37,12 @@ static uint8_t lookup_addr[16];
 static uint16_t addr_map_id;
 static uint16_t addr_map_next = 0;
 
-#define STATE_INIT			0
-#define STATE_DAD			1
-#define STATE_IDLE			2
-#define STATE_WAITING_ADVERTISMENT	3
-#define STATE_INVALID			4
 
-static const uint8_t solicited_mcast_prefix[] = { 0xFF, 0x02, 0x00, 0x00, 0x00,
+const uint8_t solicited_mcast_prefix[] = { 0xFF, 0x02, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xFF, 0x00 };
-static const uint8_t unspec_addr[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+const uint8_t unspec_addr[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-static const uint8_t all_router_mcast[] = { 0xFF, 0x02, 0x00, 0x00, 0x00, 0x00,
+const uint8_t all_router_mcast[] = { 0xFF, 0x02, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02 };
 const uint8_t ether_bcast[] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
 const uint8_t null_mac[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
@@ -98,18 +50,9 @@ const uint8_t null_mac[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 /* First 4 bytes of the IPv6 header: version=6, traffic class=0, and flow label=0 */
 static const uint8_t ipv6_header[] = { 0x60, 0x00, 0x00, 0x00 };
 
-void send_neighbor_solicitation(const uint8_t *dst_mac, const uint8_t *src_addr,
-		const uint8_t *dst_addr, const uint8_t *addr);
-void send_neighbor_advertisment(const uint8_t *dst_mac, const uint8_t *src_addr,
-		const uint8_t *dst_addr, const uint8_t *addr);
-void send_router_solicitation(const uint8_t *src_addr, const uint8_t *dst_addr);
 void construct_solicited_mcast_addr(uint8_t *solicited_mcast,
 		const uint8_t *addr);
-void assign_address_from_prefix(uint8_t *ipv6_addr, uint8_t prefixLength);
 
-void net_send_icmp(uint8_t type, uint8_t code, uint8_t *body,
-		uint16_t body_length);
-void net_send_echo_reply(uint16_t id, uint16_t seqNo);
 bool has_ipv6_addr(const uint8_t *ipaddr);
 
 void assign_address_from_prefix(uint8_t *addr, uint8_t prefixLength) {
@@ -370,131 +313,6 @@ void net_end_ipv6_packet() {
 	}
 }
 
-void net_send_icmp(uint8_t type, uint8_t code, uint8_t *body,
-		uint16_t body_length) {
-	/**
-	 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-	 |     Type      |     Code      |          Checksum             |
-	 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-	 |                                                               |
-	 +                         Message Body                          +
-	 |                                                               |
-	 */
-
-	calc_checksum(body, body_length);
-	uint8_t buf[4];
-	buf[0] = type;
-	buf[1] = code;
-	buf[2] = 0;
-	buf[3] = 0;
-	calc_checksum(buf, 4);
-
-	checksum = ~checksum;
-	buf[2] = (checksum >> 8) & 0XFF;
-	buf[3] = checksum & 0xFF;
-	net_send_data(buf, 4);
-
-	net_send_data(body, body_length);
-}
-
-void send_neighbor_solicitation(const uint8_t *dst_mac, const uint8_t *src_addr,
-		const uint8_t *dst_addr, const uint8_t *addr) {
-	uint16_t payload_length = 20; /* Solicitation */
-	uint8_t buf[20 + 8]; /* Room for solicitation + source link-layer option */
-
-	if (src_addr != unspec_addr) {
-		payload_length += 8;
-	}
-
-	struct ipv6_packet_arg arg;
-	arg.dst_mac_addr = dst_mac;
-	arg.dst_ipv6_addr = dst_addr;
-	arg.src_ipv6_addr = src_addr;
-	arg.payload_length = payload_length + SIZE_ICMP_HEADER;
-	arg.protocol = PROTO_ICMP;
-
-#if 1
-	net_start_ipv6_packet(&arg);
-
-	/* Reserved bits */
-	buf[0] = buf[1] = buf[2] = buf[3] = 0x00;
-
-	/* Address */
-	memcpy(buf + 4, addr, 16);
-
-	/* Option */
-	if (src_addr != unspec_addr) {
-		buf[20] = 0x01;
-		buf[21] = 0x01;
-		memcpy(buf + 22, enc_mac_addr, 6);
-	}
-
-	net_send_icmp(ICMP_TYPE_NEIGHBOR_SOLICITATION, 0x00, buf, payload_length);
-	net_end_ipv6_packet();
-#endif
-}
-
-void send_neighbor_advertisment(const uint8_t *dst_mac, const uint8_t *src_addr,
-		const uint8_t *dst_addr, const uint8_t *addr) {
-	/*
-	 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-	 |     Type      |     Code      |          Checksum             | ICMP
-	 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-	 |R|S|O|                     Reserved                            | BODY \/
-	 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-	 |                                                               |
-	 +                                                               +
-	 |                                                               |
-	 +                       Target Address                          +
-	 |                                                               |
-	 +                                                               +
-	 |                                                               |
-	 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-	 |   Options ...
-	 +-+-+-+-+-+-+-+-+-+-+-+-
-	 */
-	/* Length here does not include ICMP header */
-	uint16_t payload_length = 20 + 8; /* Advertisment + target-link layer option*/
-	uint8_t buf[20 + 8];
-
-	struct ipv6_packet_arg arg;
-
-	arg.dst_mac_addr = dst_mac;
-	arg.dst_ipv6_addr = dst_addr;
-	arg.src_ipv6_addr = src_addr;
-	arg.payload_length = payload_length + SIZE_ICMP_HEADER;
-	arg.protocol = PROTO_ICMP;
-
-	net_start_ipv6_packet(&arg);
-
-	buf[0] = 0x60; /* Solicited + Override set */
-	buf[1] = buf[2] = buf[3] = 0x00; /* Reserved */
-	memcpy(buf + 4, addr, 16);
-	buf[20] = 0x02;
-	buf[21] = 0x01;
-	memcpy(buf + 22, enc_mac_addr, 6);
-
-	net_send_icmp(ICMP_TYPE_NEIGHBOR_ADVERTISMENT, 0x00, buf, sizeof(buf));
-
-	net_end_ipv6_packet();
-}
-
-void send_router_solicitation(const uint8_t *src_addr, const uint8_t *dst_addr) {
-	uint16_t payload_length = 4;
-	uint8_t buf[payload_length];
-
-	struct ipv6_packet_arg arg;
-	arg.dst_mac_addr = ether_bcast;
-	arg.dst_ipv6_addr = dst_addr;
-	arg.src_ipv6_addr = src_addr;
-	arg.payload_length = payload_length + SIZE_ICMP_HEADER;
-	arg.protocol = PROTO_ICMP;
-
-	net_start_ipv6_packet(&arg);
-	buf[0] = buf[1] = buf[2] = buf[3] = 0x00;
-	net_send_icmp(ICMP_TYPE_ROUTER_SOLICITATION, 0x00, buf, payload_length);
-	net_end_ipv6_packet();
-}
 
 void net_tick(void) {
 	switch (net_state) {
@@ -585,13 +403,11 @@ void handle_ipv6(uint8_t *macSource, uint16_t length, DATA_CB dataCb,
 
 	/* IPv6 version is 4 most significant bits */
 	uint8_t version = (buf[0] >> 4) & 0xF;
-	DPRINTF_IPV6(("IP Version: %d\n", version));
 
 	/* 4-lowest bit from buf[0] and 4-highest bits from buf[1]
 	 * are the traffic class
 	 */
 	uint8_t traffic_class = (buf[0] & 0xF) << 4 | ((buf[1] >> 4) & 0xF);
-	DPRINTF_IPV6(("Traffic class: %d\n", traffic_class));
 
 	/* Read and ignore flow label */
 	dataCb(buf, 2, priv);
@@ -600,15 +416,12 @@ void handle_ipv6(uint8_t *macSource, uint16_t length, DATA_CB dataCb,
 	dataCb(buf, 2, priv);
 
 	uint16_t payload_length = buf[0] << 8 | buf[1];
-	DPRINTF_IPV6(("Payload length: %d\n", payload_length));
 
 	uint8_t nextHeader;
 	dataCb(&nextHeader, 1, priv);
-	DPRINTF_IPV6(("Next Header: %d\n", nextHeader));
 
 	uint8_t hopLimit;
 	dataCb(&hopLimit, 1, priv);
-	DPRINTF_IPV6(("Hop Limit: %d\n", hopLimit));
 
 	uint8_t sourceAddr[16];
 	dataCb(sourceAddr, 16, priv);
@@ -620,7 +433,6 @@ void handle_ipv6(uint8_t *macSource, uint16_t length, DATA_CB dataCb,
 	calc_checksum(sourceAddr, 16);
 	calc_checksum(destAddr, 16);
 
-	DPRINTADDR_IPV6((sourceAddr)); DPRINTADDR_IPV6((destAddr));
 
 	/* TODO: Follow header chain until we find something valid */
 
@@ -680,120 +492,3 @@ void print_addr(const uint8_t *addr) {
 	debug_nl();
 }
 
-void handle_icmp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
-		uint16_t length, DATA_CB dataCb, void *priv) {
-	uint8_t payload[length - 4];
-	uint8_t type;
-
-	dataCb(payload, 4, priv);
-	DPRINTF_ICMP(("Type: %d\n", payload[0]));
-	debug_puts("ICMP\r\n");
-	type = payload[0];
-	DPRINTF_ICMP(("Code: %d\n", payload[1]));
-
-	DPRINTF_ICMP(("Checksum: ")); DPRINTBUF_ICMP((payload+2, 2));
-	calc_checksum(payload, 4);
-
-	uint16_t r = dataCb(payload, length - 4, priv);
-	DPRINTF_ICMP(("Expected: %d, got: %d\n", length-4, r));
-
-	calc_checksum(payload, length - 4);
-
-	DPRINTF_ICMP(("Calculated Checksum: %X\n", checksum));
-
-	if (checksum != 0xFFFF) {
-		//printf("Invalid checksum\n");
-		return;
-	}
-
-	if (net_state != STATE_IDLE && type != ICMP_TYPE_NEIGHBOR_SOLICITATION
-			&& type != ICMP_TYPE_NEIGHBOR_ADVERTISMENT)
-		return;
-
-	switch (type) {
-	case ICMP_TYPE_NEIGHBOR_SOLICITATION:
-		/* First 4 bytes are 'reserved', we ignore them.
-		 Next 16 bytes are the target address
-		 */
-		//if( memcmp(payload+4, addr_link, 16) == 0) {
-		/* This solicitation is for us, send an advertisment back */
-		//printf("Got solicication for ");
-		print_addr(payload + 4);
-
-		if (length > 20) {
-			//printf("Option present\n");
-			if (payload[20] == 0x01) {
-				/* We now got the link-layer address and IPv6 address of someone, store it */
-				register_mac_addr(payload + 22, sourceAddr);
-				//printf("Option is Source-Link\n");
-				//printf("Source layer address: ");
-				print_buf(payload + 22, 6);
-				//send_neighbor_advertisment(payload+22, addr_link, sourceAddr, addr_link);
-				send_neighbor_advertisment(payload + 22, payload + 4,
-						sourceAddr, payload + 4);
-			}
-		}
-
-		//}
-		break;
-	case ICMP_TYPE_NEIGHBOR_ADVERTISMENT:
-		/* We ignore first 4 bytes */
-
-		if (net_state == STATE_DAD) {
-			if (memcmp(payload + 4, addr_link, 16) == 0) {
-				//printf("Duplicate address detected\n");
-				net_state = STATE_INVALID;
-				return;
-			}
-		}
-
-		register_mac_addr(macSource, payload + 4);
-		net_state = STATE_IDLE;
-		break;
-	case ICMP_TYPE_ECHO_REQUEST:
-		if (length >= 8) {
-			uint16_t id = (payload[0] << 8) | payload[1];
-			uint16_t seqNo = (payload[2] << 8) | payload[3];
-			//printf("Echo request, id: %X, seqNo: %X\n", id, seqNo);
-			struct ipv6_packet_arg arg;
-			arg.dst_mac_addr = null_mac;
-			arg.dst_ipv6_addr = sourceAddr;
-			arg.src_ipv6_addr = destIPAddr;
-			arg.payload_length = SIZE_ICMP_HEADER + length;
-			arg.protocol = PROTO_ICMP;
-
-			net_start_ipv6_packet(&arg);
-			net_send_icmp(ICMP_TYPE_ECHO_REPLY, 0, payload, length);
-			net_end_ipv6_packet();
-		}
-		break;
-	case ICMP_TYPE_ROUTER_ADVERTISMENT:
-		/* Ignore first 12 bytes, as we are only interested in
-		 addresses. Next, loop through the options in the payload
-		 */
-	{
-
-		debug_puts("Got router advertisment\n");
-		uint8_t *c = payload + 12;
-		while (c < payload + length - 4) {
-			//printf("%p < %p\n, ", c, payload + length-4);
-			//printf("Option %d, length: %d\n", c[0], c[1]);
-			if (c[0] == 3) {
-				uint8_t prefixLength = c[2];
-				/* Prefix starts at offset 16 */
-				//printf("Addr / %d: ", prefixLength);
-				print_addr(c + 16);
-
-				if (ipv6_addr[0] == 0x00) {
-					assign_address_from_prefix(c + 16, prefixLength);
-					mem_write(default_route_mac_id, 0, macSource, 16);
-				} else {
-
-				}
-			}
-			c += c[1] * 8;
-		}
-	}
-		break;
-	}
-}
