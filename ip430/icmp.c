@@ -133,9 +133,6 @@ void net_send_icmp(uint8_t type, uint8_t code, uint8_t *body,
 	buf[3] = 0;
 	calc_checksum(buf, 4);
 
-	/*checksum = ~checksum;
-	buf[2] = (checksum >> 8) & 0XFF;
-	buf[3] = checksum & 0xFF;*/
 	net_send_data(buf, 2);
 	net_send_dummy_checksum();
 
