@@ -5,6 +5,7 @@
 #include "tcp.h"
 #include "stack.h"
 #include "debug.h"
+#include "mem.h"
 
 #define TCP_STATE_NONE		0
 #define TCP_STATE_LISTEN	1
@@ -31,7 +32,8 @@ struct tcb {
 	uint8_t	tcp_state;
 };
 
-static struct tcb tcbs[1];
+//static struct tcb tcbs[1];
+static uint16_t tcb_id;
 static uint16_t tcb_count;
 
 /**
@@ -83,20 +85,31 @@ tcp_send(struct tcb *tcb, uint16_t flags, const uint8_t *data, uint32_t count) {
 
 void
 tcp_init(void) {
-	tcb_count = 1;
+	tcb_count = 5;
 
-	tcbs[0].tcp_state = TCP_STATE_LISTEN;
-	tcbs[0].tcp_local_port = 8000;
+	tcb_id = mem_alloc(sizeof(struct tcb)*tcb_count);
+
+	struct tcb tcb;
+
+	for(int i=0;i<tcb_count;i++) {
+		tcb.tcp_state = TCP_STATE_NONE;
+		mem_write(tcb_id, i*sizeof(struct tcb), (uint8_t*)&tcb, sizeof(struct tcb));
+	}
+	tcb.tcp_state = TCP_STATE_LISTEN;
+	tcb.tcp_local_port = 8000;
+	mem_write(tcb_id, 0, &tcb, sizeof(struct tcb));
 }
 
 void
 handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr, uint16_t length, DATA_CB dataCb, void *priv)
 {
+	/* Enough to keep the TCP header without options */
 	uint8_t buf[length];
 
 	dataCb(buf, length, priv);
 
-	debug_puts("TCP\n");
+	debug_puts("TCP");
+	debug_nl();
 
 	uint16_t sourcePort = ((buf[0] & 0xFF) << 8) | buf[1] & 0xFF;
 	uint16_t destPort = ((buf[2] & 0xFF) << 8) | buf[3] & 0xFF;
@@ -152,18 +165,22 @@ handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr, uint16_
 	}
 
 	// Find TCB by local_port
-	struct tcb *tcb = NULL;
+	struct tcb tcb;
+	uint16_t tcb_no;
+	tcb.tcp_state = TCP_STATE_NONE;
 	for(int i=0;i<tcb_count; i++) {
-		if ( destPort == tcbs[i].tcp_local_port) {
-			tcb = &tcbs[i];
+		mem_read(tcb_id, i*sizeof(struct tcb), &tcb, sizeof(struct tcb));
+		if ( tcb.tcp_state != TCP_STATE_NONE && destPort == tcb.tcp_local_port) {
+			tcb_no = i;
 			break;
 		}
 	}
 
 	uint32_t data_length = length-(dataOffset*4);
 
-	if( tcb == NULL ) {
-		//printf("TCB is closed\n");
+	if( tcb.tcp_state == TCP_STATE_NONE ) {
+		debug_puts("TCB Closed");
+		debug_nl();
 		/* CLOSED state handling according to STD7 p. 65 */
 		struct tcb ttcb;
 		uint16_t rflags = TCP_RST;
@@ -180,34 +197,38 @@ handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr, uint16_
 		return;
 	}
 
-	if ( tcb->tcp_state == TCP_STATE_LISTEN) {
+	if ( tcb.tcp_state == TCP_STATE_LISTEN) {
 		if ( flags & TCP_RST ) {
 			return;
 		}
 		if ( flags & TCP_ACK ) {
-			tcb->tcp_snd_nxt = ackNo;
-			tcp_send(tcb, TCP_RST, null_mac, 0);
+			tcb.tcp_snd_nxt = ackNo;
+			tcp_send(&tcb, TCP_RST, null_mac, 0);
+			/* Update TCB */
+			mem_write(tcb_id, tcb_no * sizeof(struct tcb), &tcb, sizeof(struct tcb));
 			return;
 		}
 
 		if ( flags & TCP_SYN ) {
-			memcpy(tcb->local_addr, destIPAddr, 16);
-			memcpy(tcb->remote_addr, sourceAddr, 16);
-			tcb->tcp_state = TCP_STATE_SYN_RECEIVED;
-			tcb->tcp_remote_port = sourcePort;
+			memcpy(tcb.local_addr, destIPAddr, 16);
+			memcpy(tcb.remote_addr, sourceAddr, 16);
+			tcb.tcp_state = TCP_STATE_SYN_RECEIVED;
+			tcb.tcp_remote_port = sourcePort;
 
 			/* Initialize variables from the received SYN-packet */
-			tcb->tcp_irs = seqNo;
-			tcb->tcp_rcv_wnd = RECV_WINDOW;
-			tcb->tcp_rcv_nxt = seqNo + 1;
+			tcb.tcp_irs = seqNo;
+			tcb.tcp_rcv_wnd = RECV_WINDOW;
+			tcb.tcp_rcv_nxt = seqNo + 1;
 
 			/* Initialize variables for sending */
-			tcb->tcp_iss = 312;
-			tcb->tcp_snd_wnd = window;
-			tcb->tcp_snd_una = tcb->tcp_iss;
-			tcb->tcp_snd_nxt = tcb->tcp_iss + 1;
+			tcb.tcp_iss = 312;
+			tcb.tcp_snd_wnd = window;
+			tcb.tcp_snd_una = tcb.tcp_iss;
+			tcb.tcp_snd_nxt = tcb.tcp_iss + 1;
 
-			tcp_send(tcb, TCP_SYN | TCP_ACK, null_mac, 0);
+			tcp_send(&tcb, TCP_SYN | TCP_ACK, null_mac, 0);
+			/* Update TCB */
+			mem_write(tcb_id, tcb_no * sizeof(struct tcb), &tcb, sizeof(struct tcb));
 		}
 	}
 
@@ -222,29 +243,37 @@ handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr, uint16_
 		 lost packages */
 
 
-	switch(tcb->tcp_state) {
+	switch(tcb.tcp_state) {
 		case TCP_STATE_SYN_RECEIVED:
 			if (flags & TCP_RST) {
-				tcb->tcp_state = TCP_STATE_LISTEN;
+				tcb.tcp_state = TCP_STATE_LISTEN;
+				/* Update TCB */
+				mem_write(tcb_id, tcb_no * sizeof(struct tcb), &tcb, sizeof(struct tcb));
 				return;
 			}
 			if (flags & TCP_ACK) {
-				tcb->tcp_state = TCP_STATE_ESTABLISHED;
+				tcb.tcp_state = TCP_STATE_ESTABLISHED;
+				/* Update TCB */
+				mem_write(tcb_id, tcb_no * sizeof(struct tcb), &tcb, sizeof(struct tcb));
 			}
 			break;
 
 		case TCP_STATE_ESTABLISHED:
 			if (flags & TCP_RST) {
 				/* TODO: Add proper RST handling */
-				tcb->tcp_state = TCP_STATE_LISTEN;
+				tcb.tcp_state = TCP_STATE_LISTEN;
+				/* Update TCB */
+				mem_write(tcb_id, tcb_no * sizeof(struct tcb), &tcb, sizeof(struct tcb));
 				return;
 			}
 			if ( flags & TCP_ACK ) {
-				tcb->tcp_snd_una = ackNo;
-				tcb->tcp_rcv_nxt = seqNo;
+				tcb.tcp_snd_una = ackNo;
+				tcb.tcp_rcv_nxt = seqNo;
 			}
 			/* Echo data back ack'ing things along the way */
-			tcp_send(tcb, TCP_ACK, buf+dataOffset*4, data_length);
+			tcp_send(&tcb, TCP_ACK, buf+dataOffset*4, data_length);
+			/* Update TCB */
+			mem_write(tcb_id, tcb_no * sizeof(struct tcb), &tcb, sizeof(struct tcb));
 			break;
 	}
 
