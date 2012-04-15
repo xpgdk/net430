@@ -12,6 +12,8 @@
 #define TCP_STATE_SYN_SENT	2
 #define TCP_STATE_SYN_RECEIVED 	3
 #define TCP_STATE_ESTABLISHED	4
+#define TCP_STATE_CLOSE_WAIT	5
+#define TCP_STATE_LAST_ACK	6
 
 #define RECV_WINDOW		200
 
@@ -205,6 +207,9 @@ handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr, uint16_
 		if ( flags & TCP_RST ) {
 			return;
 		}
+		if ( flags & TCP_FIN ) {
+			return;
+		}
 		if ( flags & TCP_ACK ) {
 			tcb.tcp_snd_nxt = ackNo;
 			tcp_send(&tcb, TCP_RST, 0);
@@ -264,7 +269,17 @@ handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr, uint16_
 			}
 			break;
 
+		case TCP_STATE_CLOSE_WAIT:
 		case TCP_STATE_ESTABLISHED:
+			if (flags & TCP_FIN) {
+				tcb.tcp_rcv_nxt = seqNo;
+				tcp_send(&tcb, TCP_ACK | TCP_FIN, 0);
+				net_tcp_end_packet();
+				tcb.tcp_state = TCP_STATE_NONE;
+				/* Update TCB */
+				mem_write(tcb_id, tcb_no * sizeof(struct tcb), &tcb, sizeof(struct tcb));
+				return;
+			}
 			if (flags & TCP_RST) {
 				/* TODO: Add proper RST handling */
 				tcb.tcp_state = TCP_STATE_LISTEN;
