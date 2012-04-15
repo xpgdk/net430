@@ -255,6 +255,13 @@ handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr, uint16_
 
 
 	switch(tcb.tcp_state) {
+		case TCP_STATE_LAST_ACK:
+			if (flags & TCP_ACK) {
+				tcb.tcp_state = TCP_STATE_NONE;
+				/* Update TCB */
+				mem_write(tcb_id, tcb_no * sizeof(struct tcb), &tcb, sizeof(struct tcb));
+			}
+		break;
 		case TCP_STATE_SYN_RECEIVED:
 			if (flags & TCP_RST) {
 				tcb.tcp_state = TCP_STATE_LISTEN;
@@ -273,9 +280,14 @@ handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr, uint16_
 		case TCP_STATE_ESTABLISHED:
 			if (flags & TCP_FIN) {
 				tcb.tcp_rcv_nxt = seqNo;
+				/*tcp_send(&tcb, TCP_ACK, 0);
+				net_tcp_end_packet();
+				tcb.tcp_snd_nxt--;*/
+
 				tcp_send(&tcb, TCP_ACK | TCP_FIN, 0);
 				net_tcp_end_packet();
-				tcb.tcp_state = TCP_STATE_NONE;
+
+				tcb.tcp_state = TCP_STATE_LAST_ACK;
 				/* Update TCB */
 				mem_write(tcb_id, tcb_no * sizeof(struct tcb), &tcb, sizeof(struct tcb));
 				return;
