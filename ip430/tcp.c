@@ -15,23 +15,6 @@
 
 #define RECV_WINDOW		200
 
-struct tcb {
-	uint8_t	 local_addr[16];
-	uint8_t  remote_addr[16];
-	uint16_t tcp_local_port;
-	uint16_t tcp_remote_port;
-
-	uint32_t tcp_snd_una;
-	uint32_t tcp_snd_nxt;
-	uint32_t tcp_snd_wnd;
-	uint32_t tcp_iss;
-
-	uint32_t tcp_rcv_nxt;
-	uint32_t tcp_rcv_wnd;
-	uint32_t tcp_irs;
-	uint8_t	tcp_state;
-};
-
 //static struct tcb tcbs[1];
 static uint16_t tcb_id;
 static uint16_t tcb_count;
@@ -41,7 +24,7 @@ TODO: Add retransmission queue and a timer tick to retransmit packages
 */
 
 void
-tcp_send(struct tcb *tcb, uint16_t flags, const uint8_t *data, uint32_t count) {
+tcp_send(struct tcb *tcb, uint16_t flags, uint32_t count) {
 	struct ipv6_packet_arg arg;
 	uint8_t buf[20];
 
@@ -52,35 +35,42 @@ tcp_send(struct tcb *tcb, uint16_t flags, const uint8_t *data, uint32_t count) {
 	arg.protocol = PROTO_TCP;
 
 	net_start_ipv6_packet(&arg);
-	calc_checksum(data, count);
 
 	buf[0] = (tcb->tcp_local_port >> 8) & 0xFF;
 	buf[1] = tcb->tcp_local_port & 0xFF;
 	buf[2] = (tcb->tcp_remote_port >> 8) & 0xFF;
 	buf[3] = (tcb->tcp_remote_port & 0xFF);
-	CONV_OUT_32(buf+4, tcb->tcp_snd_nxt);
-	CONV_OUT_32(buf+8, tcb->tcp_rcv_nxt);
-	print_buf(buf+8, 4);
+	CONV_OUT_32(buf+4, tcb->tcp_snd_nxt); // Sequence 
+	CONV_OUT_32(buf+8, tcb->tcp_rcv_nxt); // Ack
 	buf[12] = 0x05 << 4; // Data offset
 	buf[13] = flags;
 	CONV_OUT_16(buf+14, RECV_WINDOW);
-	buf[16] = buf[17] = 0x00;
-	buf[18] = buf[19] = 0x00;
-	calc_checksum(buf, 20);
-	CONV_OUT_16(buf+16, ~checksum);
+	net_send_data(buf, 16);
+	calc_checksum(buf, 16);
 
-	net_send_data(buf, 20);
-	net_send_data(data, count);
+	buf[0] = buf[1] = 0x00; // Checksum
+	net_send_dummy_checksum();
 
-	net_end_ipv6_packet();
+	net_send_data(buf, 2);
+
+	//net_send_data(buf, 20);
+	/*net_send_data(data, count);
+
+	net_end_ipv6_packet();*/
 
 	if( count > 0 ) {
 		tcb->tcp_snd_nxt += count;
-	} /*else if (flags & TCP_ACK) {
+	} else if (flags & TCP_ACK) {
 		tcb->tcp_snd_nxt++;
-	}*/
+	}
 
 	//printf("Next sequence number: %d\n", tcb->tcp_snd_nxt);
+}
+
+void
+net_tcp_end_packet(void) {
+	net_send_replace_checksum(~checksum);
+	net_end_ipv6_packet();
 }
 
 void
@@ -104,9 +94,9 @@ void
 handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr, uint16_t length, DATA_CB dataCb, void *priv)
 {
 	/* Enough to keep the TCP header without options */
-	uint8_t buf[length];
+	uint8_t buf[20];
 
-	dataCb(buf, length, priv);
+	dataCb(buf, 20, priv);
 
 	debug_puts("TCP");
 	debug_nl();
@@ -120,46 +110,55 @@ handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr, uint16_
 	uint16_t window = CONV_16(buf+14);
 	uint16_t cs = CONV_16(buf+16);
 
-#if 0
-	printf("Surce port: %d\n", sourcePort);
-	printf("Dest port : %d\n", destPort);
-	printf("SeqNo: %u\n", seqNo);
-	printf("ackNo: %u\n", ackNo);
-	printf("Data offset: %d\n", dataOffset);
-	printf("Flags: ");
+#if 1
+	debug_puts("Source port: ");
+	debug_puthex(sourcePort);
+	debug_nl();
+	debug_puts("Dest   port: ");
+	debug_puthex(destPort);
+	debug_nl();
+	debug_puts("SeqNo: ");
+	debug_puthex(seqNo);
+	debug_nl();
+#endif
+	debug_puts("Flags: ");
 	if( flags & TCP_FIN ) {
-		printf("FIN, ");
+		debug_puts("FIN, ");
 	}
 	if( flags & TCP_SYN ) {
-		printf("SYN, ");
+		debug_puts("SYN, ");
 	}
 	if( flags & TCP_RST) {
-		printf("RST, ");
+		debug_puts("RST, ");
 	}
 	if( flags & TCP_ACK) {
-		printf("ACK, ");
+		debug_puts("ACK, ");
 	}
-	printf("\n");
-	printf("Window: %d\n", window);
-	printf("Checksum: %d\n", cs);
-#endif
+	debug_nl();
 	/* Parse options */
-	uint8_t *op = buf+20;
-	while(op < buf+dataOffset*4) {
-		//printf("Option: %d\n", op[0]);
-		if( op[0] == 0x0) {
+	uint8_t op;
+	uint16_t read;
+	while(read < dataOffset*4) {
+		dataCb(&op, 1, priv);
+		read++;
+		if( op == 0x0) {
 			break;
 		}
-		switch(op[0]) {
+		switch(op) {
 			case 1:
-				op++;
+				//dataCb(&op, 1, priv);
 				break;
 			case 2:
 				//printf("Maximum segment size: %d\n", CONV_16(op+2));
-				op += 4;
+				for(int i=0;i<3; i++)
+					dataCb(&op, 1, priv);
+				read+= 3;
 				break;
 			default:
-				op += op[1];
+				dataCb(&op, 1, priv);
+				read += op+1;
+				for(int i=0;i<op; i++)
+					dataCb(&op, 1, priv);
 				break;
 		}
 	}
@@ -178,6 +177,10 @@ handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr, uint16_
 
 	uint32_t data_length = length-(dataOffset*4);
 
+	debug_puts("State: ");
+	debug_puthex(tcb.tcp_state);
+	debug_nl();
+
 	if( tcb.tcp_state == TCP_STATE_NONE ) {
 		debug_puts("TCB Closed");
 		debug_nl();
@@ -192,7 +195,8 @@ handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr, uint16_
 			ttcb.tcp_rcv_nxt = seqNo + data_length;
 			rflags |= TCP_ACK;
 		}
-		tcp_send(&ttcb, rflags, null_mac, 0);
+		tcp_send(&ttcb, rflags, 0);
+		net_tcp_end_packet();
 
 		return;
 	}
@@ -203,7 +207,8 @@ handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr, uint16_
 		}
 		if ( flags & TCP_ACK ) {
 			tcb.tcp_snd_nxt = ackNo;
-			tcp_send(&tcb, TCP_RST, null_mac, 0);
+			tcp_send(&tcb, TCP_RST, 0);
+			net_tcp_end_packet();
 			/* Update TCB */
 			mem_write(tcb_id, tcb_no * sizeof(struct tcb), &tcb, sizeof(struct tcb));
 			return;
@@ -226,7 +231,8 @@ handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr, uint16_
 			tcb.tcp_snd_una = tcb.tcp_iss;
 			tcb.tcp_snd_nxt = tcb.tcp_iss + 1;
 
-			tcp_send(&tcb, TCP_SYN | TCP_ACK, null_mac, 0);
+			tcp_send(&tcb, TCP_SYN | TCP_ACK, 0);
+			net_tcp_end_packet();
 			/* Update TCB */
 			mem_write(tcb_id, tcb_no * sizeof(struct tcb), &tcb, sizeof(struct tcb));
 		}
@@ -267,11 +273,25 @@ handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr, uint16_
 				return;
 			}
 			if ( flags & TCP_ACK ) {
+				debug_puts("Updating ack");
+				debug_nl();
 				tcb.tcp_snd_una = ackNo;
-				tcb.tcp_rcv_nxt = seqNo;
+				tcb.tcp_rcv_nxt = seqNo + data_length;
 			}
 			/* Echo data back ack'ing things along the way */
-			tcp_send(&tcb, TCP_ACK, buf+dataOffset*4, data_length);
+			if (data_length > 0) {
+				tcp_send(&tcb, TCP_ACK, data_length);
+				for(int i=0; i<data_length; i+=20) {
+					uint16_t count = 20;
+					if (i+count > data_length) {
+						count = data_length - i;
+					}
+					dataCb(buf, count, priv);
+					net_send_data(buf, count);
+					calc_checksum(buf, count);
+				}
+				net_tcp_end_packet();
+			}
 			/* Update TCB */
 			mem_write(tcb_id, tcb_no * sizeof(struct tcb), &tcb, sizeof(struct tcb));
 			break;
