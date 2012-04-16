@@ -9,17 +9,40 @@
 #include "spi.h"
 #include "spi_mem.h"
 #include "udp.h"
+#include "tcp.h"
 
 const uint8_t mac_addr[] = { 0xea, 0x75, 0xbf, 0x72, 0x0f, 0x3d };
 
 static unsigned char gotChar = 0;
+static bool gotData = false;
+static bool closed = false;
 
 void uart_rx_isr(unsigned char c) {
 	gotChar = c;
 }
 
+void server_callback(int socket, uint8_t new_state, uint16_t count, DATA_CB data, void *priv) {
+	debug_puts("State: ");
+	debug_puthex(new_state);
+	debug_nl();
+
+	debug_puts("Data count: ");
+	debug_puthex(count);
+	debug_nl();
+
+	if( count > 0) {
+		gotData = true;
+	}
+
+	if( new_state == TCP_STATE_CLOSED) {
+		closed = true;
+	}
+}
+
 const static uint8_t dst[] = { 0x20, 0x01, 0x16, 0xd8, 0xdd, 0xaa, 0x00, 0x1,
 		0x02, 0x23, 0x54, 0xff, 0xfe, 0xd5, 0x46, 0xf0 };
+
+const static char myMessage[] = "Got your message, sir\n";
 
 int main(void) {
 	WDTCTL = WDTPW + WDTHOLD; // Stop WDT
@@ -43,11 +66,29 @@ int main(void) {
 	enc_init(mac_addr);
 	net_init(mac_addr);
 
+	int server_sock = tcp_socket(server_callback);
+	tcp_listen(server_sock, 8000);
+
+	debug_puts("server_sock: ");
+	debug_puthex(server_sock);
+	debug_nl();
+
 	while (1) {
 
 		net_tick();
 		if (!enc_idle) {
 			enc_action();
+		}
+
+		if (gotData) {
+
+			tcp_send(server_sock, myMessage, sizeof(myMessage));
+			gotData = false;
+		}
+
+		if (closed) {
+			tcp_listen(server_sock, 8000);
+			closed = false;
 		}
 
 		if (gotChar != 0) {

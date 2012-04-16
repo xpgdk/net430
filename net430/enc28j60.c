@@ -375,6 +375,8 @@ uint16_t enc_read_packet(uint8_t *buf, uint16_t count, void *priv) {
 		l = enc_remaining_packet;
 	}
 
+	enc_remaining_packet -= l;
+
 	enc_rbm(buf, l);
 
 	return l;
@@ -399,6 +401,9 @@ void enc_receive_packet(void) {
 		struct etherheader etherheader;
 		enc_rbm((uint8_t*) (&etherheader), 14);
 		handle_ethernet(&etherheader, data_count, enc_read_packet, NULL);
+		while(enc_remaining_packet > 0) {
+			enc_read_packet(status, 6, NULL);
+		}
 	}
 
 	/* Mark packet as read */
@@ -414,6 +419,7 @@ void enc_action(void) {
 
 	if (reg & ENC_EIR_PKTIF) {
 		while (READ_REG(ENC_EPKTCNT) > 0) {
+			debug_puts("P");
 			enc_receive_packet();
 		}
 	}

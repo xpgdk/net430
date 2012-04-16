@@ -23,9 +23,10 @@ struct addr_map_entry {
 uint16_t checksum;
 uint8_t addr_solicited[16];
 const uint8_t *enc_mac_addr;
-uint8_t eui64[8];
+//uint8_t eui64[8];
+uint16_t eui64_id;
 uint8_t net_state;
-uint8_t addr_link[16]; /* Link local is special */
+uint8_t addr_link[20]; /* Link local is special */
 uint8_t ipv6_addr[16]; /* TODO: Support multiple addresses */
 uint16_t default_route_mac_id;
 
@@ -60,6 +61,10 @@ void assign_address_from_prefix(uint8_t *addr, uint8_t prefixLength) {
 		debug_puts("Unsupported prefix length for Ethernet\n");
 		return;
 	}
+
+	uint8_t eui64[8];
+
+	mem_read(eui64_id, 0, eui64, 8);
 
 	memcpy(ipv6_addr, addr, prefixLength / 8);
 	memcpy(ipv6_addr + prefixLength / 8, eui64, 8);
@@ -148,6 +153,7 @@ void net_init(const uint8_t *mac) {
 	addr_map_id = mem_alloc(sizeof(struct addr_map_entry) * ADDR_MAP_SIZE);
 
 	default_route_mac_id = mem_alloc(16);
+	eui64_id = mem_alloc(8);
 
 	debug_puts("MEM FREE:");
 	debug_puthex(mem_free());
@@ -158,6 +164,7 @@ void net_init(const uint8_t *mac) {
 	print_buf(enc_mac_addr, 6);
 
 	/* Set local/universal bit to 'local' */
+	uint8_t eui64[8];
 	eui64[0] = enc_mac_addr[0] & ~(1 << 1);
 	eui64[1] = enc_mac_addr[1];
 	eui64[2] = enc_mac_addr[2];
@@ -166,6 +173,8 @@ void net_init(const uint8_t *mac) {
 	eui64[5] = enc_mac_addr[3];
 	eui64[6] = enc_mac_addr[4];
 	eui64[7] = enc_mac_addr[5];
+
+	mem_write(eui64_id, 0, eui64, 8);
 
 	debug_puts("EUI-64: ");
 	print_buf(eui64, 8);
@@ -382,8 +391,13 @@ void handle_ethernet(struct etherheader *header, uint16_t length,
 	uint16_t type = header->type[0] << 8;
 	type |= header->type[1] & 0xFF;
 
+	debug_puts("Type: ");
+	debug_puthex(type);
+	debug_nl();
+
 	if (type == TYPE_IPV6) {
-//		debug_puts("IPv6\n");
+		debug_puts("IPv6");
+		debug_nl();
 		handle_ipv6(header->mac_source, length, dataCb, priv);
 	}
 }
@@ -433,6 +447,17 @@ void handle_ipv6(uint8_t *macSource, uint16_t length, DATA_CB dataCb,
 	calc_checksum(sourceAddr, 16);
 	calc_checksum(destAddr, 16);
 
+	debug_puts("Next Header: ");
+	debug_puthex(nextHeader);
+	debug_nl();
+
+	debug_puts("Dest: ");
+	print_addr(destAddr);
+	debug_nl();
+
+	debug_puts("Own: ");
+	print_addr(ipv6_addr);
+	debug_nl();
 	/* TODO: Follow header chain until we find something valid */
 
 	bool receive = false;
@@ -452,6 +477,9 @@ void handle_ipv6(uint8_t *macSource, uint16_t length, DATA_CB dataCb,
 		destination = ipv6_addr;
 	}
 
+	debug_puts("Receive: ");
+	debug_puthex(receive);
+	debug_nl();
 	if (!receive) {
 		return;
 	}
@@ -467,6 +495,8 @@ void handle_ipv6(uint8_t *macSource, uint16_t length, DATA_CB dataCb,
 		break;
 #ifdef HAVE_TCP
 	case PROTO_TCP:
+		debug_puts("Handing to TCP");
+		debug_nl();
 		handle_tcp(macSource, sourceAddr, destination, payload_length, dataCb,
 				priv);
 		break;
