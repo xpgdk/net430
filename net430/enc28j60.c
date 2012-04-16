@@ -23,13 +23,14 @@ static bool gotDeferred = false;
 static uint16_t enc_xmit_size = 0;
 static uint16_t deferred_id;
 static uint16_t deferred_size;
+static uint16_t checksum_location;
 
 static void enc_port_init();
 static uint8_t enc_rcr(uint8_t reg);
 static void enc_wcr(uint8_t reg, uint8_t val);
 static uint8_t enc_rcr_m(uint8_t reg);
 static void enc_rbm(uint8_t *buf, uint16_t count);
-static void enc_wbm(uint8_t *buf, uint16_t count);
+static void enc_wbm(const uint8_t *buf, uint16_t count);
 static void enc_bfs(uint8_t reg, uint8_t mask);
 static void enc_bfc(uint8_t reg, uint8_t mask);
 static void enc_switch_bank(uint8_t new_bank);
@@ -50,6 +51,8 @@ static void enc_set_bits(uint8_t reg, uint8_t bank, uint8_t mask);
 
 #define CLEAR_REG_BITS(reg, mask) enc_clear_bits(reg, reg ## _BANK, mask)
 static void enc_clear_bits(uint8_t reg, uint8_t bank, uint8_t mask);
+
+static void net_send_end_internal(void);
 
 void enc_port_init() {
 	P1DIR |= ENC_CS;
@@ -105,7 +108,7 @@ void enc_rbm(uint8_t *buf, uint16_t count) {
 	P1OUT |= ENC_CS;
 }
 
-void enc_wbm(uint8_t *buf, uint16_t count) {
+void enc_wbm(const uint8_t *buf, uint16_t count) {
 	P1OUT &= ~ENC_CS;
 	spi_send(0x60 | 0x1A);
 	for (int i = 0; i < count; i++) {
@@ -258,10 +261,10 @@ void enc_set_mac_addr(const uint8_t *mac_addr) {
 void print_int(const char *name, uint16_t v) {
 	char buf[10];
 	itoa(v, buf, 16);
-	uart_puts(name);
-	uart_puts(": ");
-	uart_puts(buf);
-	uart_puts("\r\n");
+	debug_puts(name);
+	debug_puts(": ");
+	debug_puts(buf);
+	debug_puts("\r\n");
 }
 
 void enc_write_packet_data(const uint8_t *buf, uint16_t count) {
@@ -283,18 +286,16 @@ void enc_init(const uint8_t *mac) {
 	uint8_t reg;
 	do {
 		reg = READ_REG(ENC_ESTAT);
-		uart_puthex(reg);
-		uart_puts("\r\n");
+		debug_puthex(reg);
+		debug_nl();
 		__delay_cycles(5000);
-	} while( (reg & ENC_ESTAT_CLKRDY) == 0);
+	} while ((reg & ENC_ESTAT_CLKRDY) == 0);
 
 	__delay_cycles(50000);
 
-	uart_puts("Silicon Revision: ");
-	uart_puthex(READ_REG(ENC_EREVID));
-	uart_puts("\r\n");
-
-
+	debug_puts("Silicon Revision: ");
+	debug_puthex(READ_REG(ENC_EREVID));
+	debug_nl();
 
 	//SET_REG_BITS(ENC_ECON1, ENC_ECON1_TXRST | ENC_ECON1_RXRST);
 	CLEAR_REG_BITS(ENC_ECON1, ENC_ECON1_RXEN);
@@ -304,27 +305,27 @@ void enc_init(const uint8_t *mac) {
 	enc_set_rx_area(0x000, RX_END);
 
 	uint16_t phyreg = enc_phy_read(ENC_PHSTAT2);
-	uart_puts("PHSTAT2: ");
-	uart_puthex(phyreg);
-	uart_puts("\r\n");
+	debug_puts("PHSTAT2: ");
+	debug_puthex(phyreg);
+	debug_puts("\r\n");
 	phyreg &= ~ENC_PHSTAT2_DPXSTAT;
-	uart_puthex(phyreg);
-	uart_puts("\r\n");
+	debug_puthex(phyreg);
+	debug_puts("\r\n");
 	enc_phy_write(ENC_PHSTAT2, phyreg);
 
 	phyreg = enc_phy_read(ENC_PHSTAT2);
-	uart_puts("PHSTAT2: ");
-	uart_puthex(phyreg);
-	uart_puts("\r\n");
+	debug_puts("PHSTAT2: ");
+	debug_puthex(phyreg);
+	debug_puts("\r\n");
 
 	phyreg = enc_phy_read(ENC_PHCON1);
-	uart_puts("PHCON1: ");
-	uart_puthex(phyreg);
-	uart_puts("\r\n");
+	debug_puts("PHCON1: ");
+	debug_puthex(phyreg);
+	debug_puts("\r\n");
 	phyreg &= ~ENC_PHCON_PDPXMD;
-	uart_puts("PHCON1: ");
-	uart_puthex(phyreg);
-	uart_puts("\r\n");
+	debug_puts("PHCON1: ");
+	debug_puthex(phyreg);
+	debug_puts("\r\n");
 	enc_phy_write(ENC_PHCON1, phyreg);
 
 #if 0
@@ -364,7 +365,7 @@ void enc_init(const uint8_t *mac) {
 }
 
 void enc_handle_int(void) {
-		enc_idle = false;
+	enc_idle = false;
 }
 
 uint16_t enc_read_packet(uint8_t *buf, uint16_t count, void *priv) {
@@ -434,16 +435,16 @@ int16_t net_send_start(struct etherheader *header) {
 	enc_xmit_size = 0;
 	defer = doDefer;
 	if (doDefer) {
-		if( gotDeferred ) {
+		if (gotDeferred) {
 			// We can only handle one deferred packet
 			return -1;
 		}
-		uart_puts("Writing packet to secondary storage\r\n");
+		debug_puts("Writing packet to secondary storage\r\n");
 		retval = deferred_id;
 	} else {
-		uart_puts("Dest: ");
-		print_buf(header->mac_dest,6);
-		uart_puts("\r\n");
+		debug_puts("Dest: ");
+		print_buf(header->mac_dest, 6);
+		debug_puts("\r\n");
 		WRITE_REG(ENC_ETXSTL, TX_START & 0xFF);
 		WRITE_REG(ENC_ETXSTH, TX_START >> 8);
 
@@ -452,8 +453,6 @@ int16_t net_send_start(struct etherheader *header) {
 		uint8_t control = 0x00; // USE MACON3 defaults
 		net_send_data(&control, 1);
 	}
-
-
 
 	net_send_data((const uint8_t*) header, sizeof(struct etherheader));
 
@@ -470,22 +469,22 @@ void net_send_data(const uint8_t *buf, uint16_t count) {
 }
 
 void net_send_end() {
-	if( defer ) {
+	if (defer) {
 		deferred_size = enc_xmit_size;
 		return;
 	}
 	net_send_end_internal();
 }
 
-void net_send_end_internal() {
+void net_send_end_internal(void) {
 	/* Set TX end */
 	uint16_t tx_end = TX_START + enc_xmit_size;
 	WRITE_REG(ENC_ETXNDL, tx_end & 0xFF);
 	WRITE_REG(ENC_ETXNDH, tx_end >> 8);
 
-	uart_puts("Transmitting ");
-	uart_puthex(enc_xmit_size);
-	uart_puts(" bytes\r\n");
+	debug_puts("Transmitting ");
+	debug_puthex(enc_xmit_size);
+	debug_puts(" bytes\r\n");
 
 	/* Eratta 12 */
 	SET_REG_BITS(ENC_ECON1, ENC_ECON1_TXRST);
@@ -499,7 +498,7 @@ void net_send_end_internal() {
 		uint8_t r = READ_REG(ENC_ECON1);
 		if ((r & ENC_ECON1_TXRTS) == 0)
 			break;
-		uart_puts(".");
+		debug_puts(".");
 		__delay_cycles(200);
 	}
 
@@ -510,16 +509,16 @@ void net_send_end_internal() {
 	WRITE_REG(ENC_ERDPTH, tx_end >> 8);
 	enc_rbm(status, 7);
 
-	uart_puts("Transmit done\r\n");
+	debug_puts("Transmit done\r\n");
 	uint16_t transmit_count = status[0] | (status[1] << 8);
-	uart_puts("Transmit count: ");
-	uart_puthex(transmit_count);
-	uart_puts("\r\n");
+	debug_puts("Transmit count: ");
+	debug_puthex(transmit_count);
+	debug_puts("\r\n");
 	if (status[2] & 0x80) {
-		uart_puts("Transmit OK\r\n");
+		debug_puts("Transmit OK\r\n");
 	}
-	uart_puthex(status[2]);
-	uart_puts("\r\n");
+	debug_puthex(status[2]);
+	debug_puts("\r\n");
 }
 
 void net_send_deferred(int16_t id, uint8_t const *dstMac) {
@@ -530,9 +529,9 @@ void net_send_deferred(int16_t id, uint8_t const *dstMac) {
 
 	memcpy(header.mac_dest, dstMac, 6);
 
-	uart_puts("Dest: ");
-	print_buf(header.mac_dest,6);
-	uart_puts("\r\n");
+	debug_puts("Dest: ");
+	print_buf(header.mac_dest, 6);
+	debug_puts("\r\n");
 	WRITE_REG(ENC_ETXSTL, TX_START & 0xFF);
 	WRITE_REG(ENC_ETXSTH, TX_START >> 8);
 
@@ -545,10 +544,11 @@ void net_send_deferred(int16_t id, uint8_t const *dstMac) {
 
 	/* Next, read data from secondary storage to ENC26J80 */
 	uint8_t buf[50];
-	for(uint16_t i=sizeof(struct etherheader); i<=deferred_size; i+=sizeof(buf)) {
+	for (uint16_t i = sizeof(struct etherheader); i <= deferred_size; i +=
+			sizeof(buf)) {
 		uint16_t count = sizeof(buf);
-		if ( count + i > deferred_size ) {
-			count = deferred_size-i;
+		if (count + i > deferred_size) {
+			count = deferred_size - i;
 		}
 		mem_read(id, i, buf, count);
 		net_send_data(buf, count);
@@ -560,4 +560,33 @@ void net_send_deferred(int16_t id, uint8_t const *dstMac) {
 
 void net_drop_deferred(int16_t id) {
 	gotDeferred = false;
+}
+
+void net_send_dummy_checksum(void) {
+	uint8_t buf[] = { 0x00, 0x00 };
+	if (defer) {
+		checksum_location = enc_xmit_size;
+	} else {
+		uint8_t high = READ_REG(ENC_EWRPTH);
+		checksum_location = READ_REG(ENC_EWRPTL) | (high << 8);
+	}
+	net_send_data(buf, 2);
+}
+
+void net_send_replace_checksum(uint16_t checksum) {
+	uint8_t buf[2];
+	buf[0] = checksum >> 8;
+	buf[1] = checksum & 0xFF;
+	if (defer) {
+		mem_write(deferred_id, checksum_location, buf, 2);
+	} else {
+		uint8_t cur[2];
+		cur[0] = READ_REG(ENC_EWRPTL);
+		cur[1] = READ_REG(ENC_EWRPTH);
+		WRITE_REG(ENC_EWRPTL, checksum_location & 0xFF);
+		WRITE_REG(ENC_EWRPTH, checksum_location >> 8);
+		enc_write_packet_data(buf, 2);
+		WRITE_REG(ENC_EWRPTL, cur[0]);
+		WRITE_REG(ENC_EWRPTH, cur[1]);
+	}
 }

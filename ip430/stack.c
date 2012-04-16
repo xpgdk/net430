@@ -3,6 +3,7 @@
 #include "stack.h"
 #include <stdbool.h>
 #include <stdlib.h>
+#include <stdint.h>
 
 #ifdef HAVE_TCP
 #include "tcp.h"
@@ -37,13 +38,12 @@ static uint8_t lookup_addr[16];
 static uint16_t addr_map_id;
 static uint16_t addr_map_next = 0;
 
-
-const uint8_t solicited_mcast_prefix[] = { 0xFF, 0x02, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xFF, 0x00 };
-const uint8_t unspec_addr[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-const uint8_t all_router_mcast[] = { 0xFF, 0x02, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02 };
+const uint8_t solicited_mcast_prefix[] = { 0xFF, 0x02, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xFF, 0x00 };
+const uint8_t unspec_addr[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+const uint8_t all_router_mcast[] = { 0xFF, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02 };
 const uint8_t ether_bcast[] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
 const uint8_t null_mac[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 
@@ -137,13 +137,14 @@ bool is_null_mac(const uint8_t *mac) {
 }
 
 void net_init(const uint8_t *mac) {
+	debug_puts("MEM FREE:");
+	debug_puthex(mem_free());
+	debug_puts("\r\n");
+
 #ifdef HAVE_TCP
 	tcp_init();
 #endif
 	memset(ipv6_addr, 0x00, 16);
-	debug_puts("MEM FREE:");
-	debug_puthex(mem_free());
-	debug_puts("\r\n");
 	addr_map_id = mem_alloc(sizeof(struct addr_map_entry) * ADDR_MAP_SIZE);
 
 	default_route_mac_id = mem_alloc(16);
@@ -313,7 +314,6 @@ void net_end_ipv6_packet() {
 	}
 }
 
-
 void net_tick(void) {
 	switch (net_state) {
 	case STATE_DAD:
@@ -433,7 +433,6 @@ void handle_ipv6(uint8_t *macSource, uint16_t length, DATA_CB dataCb,
 	calc_checksum(sourceAddr, 16);
 	calc_checksum(destAddr, 16);
 
-
 	/* TODO: Follow header chain until we find something valid */
 
 	bool receive = false;
@@ -467,8 +466,9 @@ void handle_ipv6(uint8_t *macSource, uint16_t length, DATA_CB dataCb,
 				priv);
 		break;
 #ifdef HAVE_TCP
-		case PROTO_TCP:
-		handle_tcp(macSource, sourceAddr, destination, payload_length, dataCb, priv);
+	case PROTO_TCP:
+		handle_tcp(macSource, sourceAddr, destination, payload_length, dataCb,
+				priv);
 		break;
 #endif
 	}

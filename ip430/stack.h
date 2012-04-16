@@ -62,10 +62,10 @@ extern const uint8_t *enc_mac_addr;
 #define CONV_16(b) ( ((*(b+0)) << 8) | (*(b+1)) )
 
 static uint32_t CONV_32(uint8_t *buf) {
-	uint32_t r = buf[0] << 24;
-	r |= buf[1] << 16;
-	r |= buf[2] << 8;
-	r |= buf[3];
+	uint32_t r = (uint32_t)buf[0] << 24;
+	r |= (uint32_t)buf[1] << 16;
+	r |= (uint32_t)buf[2] << 8;
+	r |= (uint32_t)buf[3];
 
 	return r;
 }

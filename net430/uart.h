@@ -62,8 +62,9 @@ void uart_putc(unsigned char c);
  *
  * @param[in]	*str	the 0 terminated string to write
  */
-void uart_puts(const char *str);
+void debug_puts(const char *str);
 
-void uart_puthex(uint16_t v);
+void debug_puthex(uint16_t v);
 
+void debug_nl();
 #endif

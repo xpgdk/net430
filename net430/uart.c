@@ -27,7 +27,7 @@
 
 #include <msp430.h>
 #include <legacymsp430.h>
-
+#include <stdlib.h>
 #include "uart.h"
 
 /**
@@ -76,17 +76,20 @@ void uart_putc(unsigned char c)
   	UCA0TXBUF = c;                    		// TX
 }
 
-void uart_puts(const char *str)
+void debug_puts(const char *str)
 {
      while(*str) uart_putc(*str++);
 }
 
-void uart_puthex(uint16_t v) {
+void debug_puthex(uint16_t v) {
 	char buf[10];
 	itoa(v, buf, 16);
-	uart_puts(buf);
+	debug_puts(buf);
 }
 
+void debug_nl() {
+	debug_puts("\r\n");
+}
 
 interrupt(USCIAB0RX_VECTOR) USCI0RX_ISR(void)
 {

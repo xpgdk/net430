@@ -33,6 +33,9 @@
 								<inputType id="dk.xpg.msp430eclipse.tool.assembler.input.1577534595" name="Assembler Files" superClass="dk.xpg.msp430eclipse.tool.assembler.input"/>
 							</tool>
 							<tool id="dk.xpg.msp430eclipse.tool.linker.gcc.41802916" name="MSP430 Linker" superClass="dk.xpg.msp430eclipse.tool.linker.gcc">
+								<option id="dk.xpg.msp430eclipse.linker.option.libraries.searchPath.1654854354" superClass="dk.xpg.msp430eclipse.linker.option.libraries.searchPath" valueType="libPaths">
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/ip430}&quot;"/>
+								</option>
 								<inputType id="dk.xpg.msp430eclipse.tool.linker.input.580516830" name="Object Files" superClass="dk.xpg.msp430eclipse.tool.linker.input"/>
 							</tool>
 						</toolChain>
@@ -93,4 +96,5 @@
 			<autodiscovery enabled="true" problemReportingEnabled="true" selectedProfileId="dk.xpg.msp430eclipse.MSP430GCCManagedMakePerProjectProfileC"/>
 		</scannerConfigBuildInfo>
 	</storageModule>
+	<storageModule moduleId="org.eclipse.cdt.internal.ui.text.commentOwnerProjectMappings"/>
 </cproject>

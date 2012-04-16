@@ -95,22 +95,32 @@ tcp_init(void) {
 void
 handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr, uint16_t length, DATA_CB dataCb, void *priv)
 {
-	/* Enough to keep the TCP header without options */
-	uint8_t buf[20];
-
-	dataCb(buf, 20, priv);
+	uint8_t buf[4];
 
 	debug_puts("TCP");
 	debug_nl();
 
+	dataCb(buf, 2, priv);
 	uint16_t sourcePort = ((buf[0] & 0xFF) << 8) | buf[1] & 0xFF;
-	uint16_t destPort = ((buf[2] & 0xFF) << 8) | buf[3] & 0xFF;
-	uint32_t seqNo = CONV_32(buf+4);
-	uint32_t ackNo = CONV_32(buf+8);
-	uint8_t dataOffset = (buf[12] & 0xF0 )>> 4; // in 4-byte value
-	uint8_t flags = buf[13];
-	uint16_t window = CONV_16(buf+14);
-	uint16_t cs = CONV_16(buf+16);
+
+	dataCb(buf, 2, priv);
+	uint16_t destPort = ((buf[0] & 0xFF) << 8) | buf[1] & 0xFF;
+
+	dataCb(buf, 4, priv);
+	uint32_t seqNo = CONV_32(buf);
+
+	dataCb(buf, 4, priv);
+	uint32_t ackNo = CONV_32(buf);
+
+	dataCb(buf, 2, priv);
+	uint8_t dataOffset = (buf[0] & 0xF0 )>> 4; // in 4-byte value
+	uint8_t flags = buf[1];
+
+	dataCb(buf, 2, priv);
+	uint16_t window = CONV_16(buf);
+
+	dataCb(buf, 2, priv);
+	uint16_t cs = CONV_16(buf);
 
 #if 1
 	debug_puts("Source port: ");
@@ -120,7 +130,8 @@ handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr, uint16_
 	debug_puthex(destPort);
 	debug_nl();
 	debug_puts("SeqNo: ");
-	debug_puthex(seqNo);
+	debug_puthex(seqNo >> 16);
+	debug_puthex(seqNo & 0xFFFF);
 	debug_nl();
 #endif
 	debug_puts("Flags: ");
@@ -246,8 +257,13 @@ handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr, uint16_
 
 			tcp_send(&tcb, TCP_SYN | TCP_ACK, 0);
 			net_tcp_end_packet();
+			debug_puts("TCP Send");
+			debug_nl();
 			/* Update TCB */
 			mem_write(tcb_id, tcb_no * sizeof(struct tcb), &tcb, sizeof(struct tcb));
+			debug_puts("TCB updated");
+			debug_nl();
+			return;
 		}
 	}
 
