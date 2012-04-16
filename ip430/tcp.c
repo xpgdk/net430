@@ -190,12 +190,20 @@ handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr, uint16_
 		struct tcb ttcb;
 		uint16_t rflags = TCP_RST;
 
+		memcpy(ttcb.local_addr, destIPAddr, 16);
+		memcpy(ttcb.remote_addr, sourceAddr, 16);
+		ttcb.tcp_remote_port = sourcePort;
+		ttcb.tcp_local_port = destPort;
+
 		if ( flags & TCP_ACK ) {
 			ttcb.tcp_snd_nxt = ackNo;
 		} else {
 			ttcb.tcp_snd_nxt = 0;
 			ttcb.tcp_rcv_nxt = seqNo + data_length;
 			rflags |= TCP_ACK;
+		}
+		if ( flags & TCP_SYN && data_length == 0) {
+			ttcb.tcp_rcv_nxt = seqNo + 1;
 		}
 		tcp_send(&ttcb, rflags, 0);
 		net_tcp_end_packet();
@@ -279,10 +287,10 @@ handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr, uint16_
 		case TCP_STATE_CLOSE_WAIT:
 		case TCP_STATE_ESTABLISHED:
 			if (flags & TCP_FIN) {
-				tcb.tcp_rcv_nxt = seqNo;
-				/*tcp_send(&tcb, TCP_ACK, 0);
+				tcb.tcp_rcv_nxt = seqNo+1;
+				tcp_send(&tcb, TCP_ACK, 0);
 				net_tcp_end_packet();
-				tcb.tcp_snd_nxt--;*/
+				tcb.tcp_snd_nxt--;
 
 				tcp_send(&tcb, TCP_ACK | TCP_FIN, 0);
 				net_tcp_end_packet();
