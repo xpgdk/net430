@@ -26,7 +26,7 @@ const uint8_t *enc_mac_addr;
 //uint8_t eui64[8];
 uint16_t eui64_id;
 uint8_t net_state;
-uint8_t addr_link[20]; /* Link local is special */
+uint8_t addr_link[16]; /* Link local is special */
 uint8_t ipv6_addr[16]; /* TODO: Support multiple addresses */
 uint16_t default_route_mac_id;
 
@@ -377,17 +377,6 @@ void calc_checksum(const uint8_t *buf, uint16_t count) {
 
 void handle_ethernet(struct etherheader *header, uint16_t length,
 		DATA_CB dataCb, void *priv) {
-#if 0
-	debug_puts("Dest: ");
-	print_buf(header->mac_dest, 6);
-	debug_puts("\r\n");
-	debug_puts("Src : ");
-	print_buf(header->mac_source, 6);
-	debug_puts("\r\n");
-	debug_puts("Ethernet Type: ");
-	print_buf(header->type, 2);
-	debug_puts(", ");
-#endif
 	uint16_t type = header->type[0] << 8;
 	type |= header->type[1] & 0xFF;
 
