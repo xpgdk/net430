@@ -347,17 +347,6 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 			mem_write(tcb_id, tcb_no * sizeof(struct tcb), &tcb,
 					sizeof(struct tcb));
 			tcb.callback(tcb_no, tcb.tcp_state, data_length, dataCb, priv);
-//				tcp_send(&tcb, TCP_ACK, data_length);
-//				for(int i=0; i<data_length; i+=20) {
-//					uint16_t count = 20;
-//					if (i+count > data_length) {
-//						count = data_length - i;
-//					}
-//					dataCb(buf, count, priv);
-//					net_send_data(buf, count);
-//					calc_checksum(buf, count);
-//				}
-//				net_tcp_end_packet();
 		} else {
 			/* Update TCB */
 			mem_write(tcb_id, tcb_no * sizeof(struct tcb), &tcb,
