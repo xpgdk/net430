@@ -7,7 +7,7 @@
 #include "debug.h"
 #include "mem.h"
 
-#define RECV_WINDOW		200
+#define RECV_WINDOW		1500
 
 static uint16_t tcb_id;
 static uint16_t tcb_count;
@@ -217,7 +217,7 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 			ttcb.tcp_rcv_nxt = seqNo + data_length;
 			rflags |= TCP_ACK;
 		}
-		if ( (flags & TCP_SYN) && data_length == 0) {
+		if ((flags & TCP_SYN) && data_length == 0) {
 			ttcb.tcp_rcv_nxt = seqNo + 1;
 		}
 		tcp_send_packet(&ttcb, rflags, 0);
@@ -284,6 +284,26 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 	 lost packages */
 
 	switch (tcb.tcp_state) {
+	case TCP_STATE_FIN_WAIT_2:
+		if (flags & TCP_ACK) {
+			tcb.tcp_state = TCP_STATE_TIME_WAIT;
+			/* Update TCB */
+			mem_write(tcb_id, tcb_no * sizeof(struct tcb), &tcb,
+					sizeof(struct tcb));
+		}
+		break;
+	case TCP_STATE_TIME_WAIT:
+		if ((flags & TCP_ACK) && (flags & TCP_FIN)) {
+			tcb.tcp_rcv_nxt = seqNo + 1;
+			tcp_send_packet(&tcb, TCP_ACK, 0);
+			net_tcp_end_packet();
+			tcb.tcp_state = TCP_STATE_CLOSED;
+			/* Update TCB */
+			mem_write(tcb_id, tcb_no * sizeof(struct tcb), &tcb,
+					sizeof(struct tcb));
+			tcb.callback(tcb_no, tcb.tcp_state, 0, NULL, NULL);
+		}
+		break;
 	case TCP_STATE_LAST_ACK:
 		if (flags & TCP_ACK) {
 			tcb.tcp_state = TCP_STATE_CLOSED;
@@ -401,6 +421,37 @@ void tcp_send(int socket, const uint8_t *buf, uint16_t count) {
 	net_send_data(buf, count);
 	calc_checksum(buf, count);
 	net_tcp_end_packet();
+}
+
+void tcp_send_start(int socket, uint16_t count) {
+	struct tcb tcb;
+	mem_read(tcb_id, socket * sizeof(struct tcb), (uint8_t*) &tcb,
+			sizeof(struct tcb));
+
+	tcp_send_packet(&tcb, TCP_ACK, count);
+	mem_write(tcb_id, socket * sizeof(struct tcb), (uint8_t*) &tcb,
+			sizeof(struct tcb));
+}
+
+void tcp_send_data(const uint8_t *buf, uint16_t count) {
+	net_send_data(buf, count);
+	calc_checksum(buf, count);
+}
+
+void tcp_send_end() {
+	net_tcp_end_packet();
+}
+
+void tcp_close(int socket) {
+	struct tcb tcb;
+	mem_read(tcb_id, socket * sizeof(struct tcb), (uint8_t*) &tcb,
+			sizeof(struct tcb));
+
+	tcp_send_packet(&tcb, TCP_FIN|TCP_ACK, 0);
+	net_tcp_end_packet();
+	tcb.tcp_state = TCP_STATE_FIN_WAIT_2;
+	mem_write(tcb_id, socket * sizeof(struct tcb), (uint8_t*) &tcb,
+			sizeof(struct tcb));
 }
 
 #endif

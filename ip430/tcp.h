@@ -18,6 +18,9 @@
 #define TCP_STATE_ESTABLISHED	5
 #define TCP_STATE_CLOSE_WAIT	6
 #define TCP_STATE_LAST_ACK		7
+#define TCP_STATE_FIN_WAIT_1	8
+#define TCP_STATE_FIN_WAIT_2	9
+#define	TCP_STATE_TIME_WAIT		10
 
 typedef void (*tcp_callback)(int,  uint8_t, uint16_t, DATA_CB , void *);
 
@@ -52,5 +55,11 @@ void net_tcp_end_packet(void);
 int tcp_socket(tcp_callback callback);
 void tcp_listen(int socket, uint16_t port);
 void tcp_send(int socket, const uint8_t *buf, uint16_t count);
+void tcp_close(int socket);
+
+void tcp_send_start(int socket, uint16_t count);
+void tcp_send_data(const uint8_t *buf, uint16_t count);
+void tcp_send_end();
+
 
 #endif
