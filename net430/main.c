@@ -46,8 +46,8 @@ const static char myMessage[] = "Got your message, sir\n";
 
 int main(void) {
 	WDTCTL = WDTPW + WDTHOLD; // Stop WDT
-	BCSCTL1 = CALBC1_1MHZ; // Set DCO
-	DCOCTL = CALDCO_1MHZ;
+	BCSCTL1 = CALBC1_12MHZ; // Set DCO
+	DCOCTL = CALDCO_12MHZ;
 
 	uart_init();
 
