@@ -15,6 +15,7 @@
 
 #include "stack.h"
 #include "mem.h"
+#include "tcp.h"
 
 uint16_t deferred_id;
 
@@ -90,6 +91,18 @@ data_provider(uint8_t *buf, uint16_t count, void *priv)
 
 int fd;
 
+
+void server_socket_callback(int socket, uint8_t state, uint16_t count, DATA_CB dataCb, void *priv) {
+	if( state == TCP_STATE_ESTABLISHED && count > 0 ) {
+		uint8_t buf[count];
+		dataCb(buf, count, priv);
+		printf("Got %d bytes\n", count);
+		tcp_send(socket, buf, count);
+	} else if( state == TCP_STATE_CLOSED) {
+		tcp_listen(socket, 8000);
+	}
+}
+
 int
 main(int argc, char *argv[]) {
 	char tun_name[IFNAMSIZ];
@@ -116,6 +129,9 @@ main(int argc, char *argv[]) {
 	p[0].fd = fd;
 	p[0].events = POLLIN;
 
+	int server_socket = tcp_socket(server_socket_callback);
+	tcp_listen(server_socket, 8000);
+
 	while(1) {
 		int nread;
 		struct etherframe frame;
@@ -137,6 +153,7 @@ main(int argc, char *argv[]) {
 		p.data = frame.payload;
 		p.count = nread - sizeof(struct etherheader);
 		handle_ethernet(&frame.header, p.count, data_provider, &p);
+		
 	}
 }
 
