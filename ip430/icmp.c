@@ -60,7 +60,9 @@ void handle_icmp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 		/* We ignore first 4 bytes */
 
 		if (net_state == STATE_DAD) {
-			if (memcmp(payload + 4, addr_link, 16) == 0) {
+			uint8_t addr[16];
+			net_get_address(ADDRESS_STORE_LINK_LOCAL_OFFSET, addr);
+			if (memcmp(payload + 4, addr, 16) == 0) {
 				//printf("Duplicate address detected\n");
 				net_state = STATE_INVALID;
 				return;
@@ -100,8 +102,9 @@ void handle_icmp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 				uint8_t prefixLength = c[2];
 				/* Prefix starts at offset 16 */
 				print_addr(c + 16);
-
-				if (ipv6_addr[0] == 0x00) {
+				uint8_t buf[16];
+				net_get_address(ADDRESS_STORE_MAIN_OFFSET, buf);
+				if (buf[0] == 0x00) {
 					assign_address_from_prefix(c + 16, prefixLength);
 					mem_write(default_route_mac_id, 0, macSource, 6);
 				} else {

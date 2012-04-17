@@ -419,7 +419,6 @@ void enc_action(void) {
 
 	if (reg & ENC_EIR_PKTIF) {
 		while (READ_REG(ENC_EPKTCNT) > 0) {
-			debug_puts("P");
 			enc_receive_packet();
 		}
 	}
@@ -488,10 +487,6 @@ void net_send_end_internal(void) {
 	WRITE_REG(ENC_ETXNDL, tx_end & 0xFF);
 	WRITE_REG(ENC_ETXNDH, tx_end >> 8);
 
-	debug_puts("Transmitting ");
-	debug_puthex(enc_xmit_size);
-	debug_puts(" bytes\r\n");
-
 	/* Eratta 12 */
 	SET_REG_BITS(ENC_ECON1, ENC_ECON1_TXRST);
 	CLEAR_REG_BITS(ENC_ECON1, ENC_ECON1_TXRST);
@@ -515,16 +510,13 @@ void net_send_end_internal(void) {
 	WRITE_REG(ENC_ERDPTH, tx_end >> 8);
 	enc_rbm(status, 7);
 
-	debug_puts("Transmit done\r\n");
 	uint16_t transmit_count = status[0] | (status[1] << 8);
-	debug_puts("Transmit count: ");
-	debug_puthex(transmit_count);
-	debug_puts("\r\n");
+
+#if 0
 	if (status[2] & 0x80) {
-		debug_puts("Transmit OK\r\n");
+		/* Transmit OK*/
 	}
-	debug_puthex(status[2]);
-	debug_puts("\r\n");
+#endif
 }
 
 void net_send_deferred(int16_t id, uint8_t const *dstMac) {
@@ -535,9 +527,6 @@ void net_send_deferred(int16_t id, uint8_t const *dstMac) {
 
 	memcpy(header.mac_dest, dstMac, 6);
 
-	debug_puts("Dest: ");
-	print_buf(header.mac_dest, 6);
-	debug_puts("\r\n");
 	WRITE_REG(ENC_ETXSTL, TX_START & 0xFF);
 	WRITE_REG(ENC_ETXSTH, TX_START >> 8);
 

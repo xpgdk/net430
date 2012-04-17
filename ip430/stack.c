@@ -21,13 +21,15 @@ struct addr_map_entry {
 
 /* State variables */
 uint16_t checksum;
-uint8_t addr_solicited[16];
 const uint8_t *enc_mac_addr;
-//uint8_t eui64[8];
 uint16_t eui64_id;
 uint8_t net_state;
-uint8_t addr_link[16]; /* Link local is special */
-uint8_t ipv6_addr[16]; /* TODO: Support multiple addresses */
+
+static bool doLookup;
+
+/* We store three addresses in the address store (42 bytes)*/
+uint16_t address_store;
+
 uint16_t default_route_mac_id;
 
 static uint8_t const *address_lookup = NULL;
@@ -56,6 +58,14 @@ void construct_solicited_mcast_addr(uint8_t *solicited_mcast,
 
 bool has_ipv6_addr(const uint8_t *ipaddr);
 
+void net_get_address(uint8_t offset, uint8_t *target) {
+	mem_read(address_store, offset, target, 16);
+}
+
+void net_set_address(uint8_t offset, uint8_t *source) {
+	mem_write(address_store, offset, source, 16);
+}
+
 void assign_address_from_prefix(uint8_t *addr, uint8_t prefixLength) {
 	if (prefixLength != 64) {
 		debug_puts("Unsupported prefix length for Ethernet\n");
@@ -66,10 +76,12 @@ void assign_address_from_prefix(uint8_t *addr, uint8_t prefixLength) {
 
 	mem_read(eui64_id, 0, eui64, 8);
 
+	uint8_t ipv6_addr[16];
 	memcpy(ipv6_addr, addr, prefixLength / 8);
 	memcpy(ipv6_addr + prefixLength / 8, eui64, 8);
 	debug_puts("IPv6 Address configured: ");
 	print_addr(ipv6_addr);
+	net_set_address(ADDRESS_STORE_MAIN_OFFSET, ipv6_addr);
 }
 
 void register_mac_addr(const uint8_t *mac, const uint8_t *addr) {
@@ -147,6 +159,7 @@ bool is_null_mac(const uint8_t *mac) {
 }
 
 void net_init(const uint8_t *mac) {
+	doLookup = false;
 	debug_puts("MEM FREE:");
 	debug_puthex(mem_free());
 	debug_puts("\r\n");
@@ -154,12 +167,12 @@ void net_init(const uint8_t *mac) {
 #ifdef HAVE_TCP
 	tcp_init();
 #endif
-	memset(ipv6_addr, 0x00, 16);
 	addr_map_id = mem_alloc(sizeof(struct addr_map_entry) * ADDR_MAP_SIZE);
 
 	default_route_mac_id = mem_alloc(6);
 	eui64_id = mem_alloc(8);
 	lookup_addr_id = mem_alloc(16);
+	address_store = mem_alloc(ADDRESS_STORE_SIZE);
 
 	debug_puts("MEM FREE:");
 	debug_puthex(mem_free());
@@ -185,20 +198,23 @@ void net_init(const uint8_t *mac) {
 	debug_puts("EUI-64: ");
 	print_buf(eui64, 8);
 
-	addr_link[0] = 0xFE;
-	addr_link[1] = 0x80;
-	memset(addr_link + 2, 0x00, 6);
-	memcpy(addr_link + 8, eui64, 8);
+	uint8_t addr[16];
+	uint8_t solicit_addr[16];
+	addr[0] = 0xFE;
+	addr[1] = 0x80;
+	memset(addr + 2, 0x00, 6);
+	memcpy(addr + 8, eui64, 8);
 
-	print_addr(addr_link);
+	print_addr(addr);
+	net_set_address(ADDRESS_STORE_LINK_LOCAL_OFFSET, addr);
 
-	memcpy(addr_solicited, solicited_mcast_prefix, 13);
-	memcpy(addr_solicited + 13, addr_link + 13, 3);
+	memcpy(solicit_addr, solicited_mcast_prefix, 13);
+	memcpy(solicit_addr + 13, addr + 13, 3);
 
-	print_addr(addr_solicited);
+	print_addr(addr);
+	net_set_address(ADDRESS_STORE_SOLICITED_OFFSET, solicit_addr);
 
-	send_neighbor_solicitation(ether_bcast, unspec_addr, addr_solicited,
-			addr_link);
+	send_neighbor_solicitation(ether_bcast, unspec_addr, solicit_addr, addr);
 
 	net_state = STATE_DAD;
 }
@@ -319,12 +335,17 @@ void net_end_ipv6_packet() {
 
 	if (address_lookup != NULL) {
 		mem_write(lookup_addr_id, 0, address_lookup, 16);
+		doLookup = true;
+#if 0
 		/* Perform neighbor solicitation */
 		debug_puts("Lookup of ");
 		print_addr(address_lookup);
 		debug_puts("\r\n");
-		send_neighbor_solicitation(ether_bcast, addr_link, address_lookup,
+		uint8_t addr[16];
+		net_get_address(ADDRESS_STORE_LINK_LOCAL_OFFSET, addr);
+		send_neighbor_solicitation(ether_bcast, addr, address_lookup,
 				address_lookup);
+#endif
 		net_state = STATE_WAITING_ADVERTISMENT;
 	}
 }
@@ -332,29 +353,44 @@ void net_end_ipv6_packet() {
 void net_tick(void) {
 	uint8_t buf[1];
 	switch (net_state) {
-	case STATE_DAD:
+	case STATE_DAD: {
+		uint8_t addr_link[16];
+		net_get_address(ADDRESS_STORE_LINK_LOCAL_OFFSET, addr_link);
 		net_state = STATE_IDLE;
 		debug_puts("IPv6 Link Local address: ");
 		print_addr(addr_link);
 
 		send_router_solicitation(addr_link, all_router_mcast);
 		/* Ready to communicate */
+	}
 		break;
 	case STATE_WAITING_ADVERTISMENT:
-		mem_read(lookup_addr_id, 0, buf, 1);
-		if (buf[0] != 0x0) {
-			uint8_t mac[6];
-			debug_puts("Sending to default\r\n");
-			mem_read(default_route_mac_id, 0, mac, 6);
-			print_buf(mac, 6);
-			net_send_deferred(lookup_id, mac);
-			debug_puts("Done\r\n");
-			buf[0] = 0x00;
-			mem_write(lookup_addr_id, 0, buf, 1);
+		if (doLookup) {
+			doLookup = false;
+			/* Perform neighbor solicitation */
+			debug_puts("Lookup of ");
+			print_addr(address_lookup);
+			debug_puts("\r\n");
+			uint8_t addr[16];
+			net_get_address(ADDRESS_STORE_LINK_LOCAL_OFFSET, addr);
+			send_neighbor_solicitation(ether_bcast, addr, address_lookup,
+					address_lookup);
 		} else {
-			net_drop_deferred(lookup_id);
+			mem_read(lookup_addr_id, 0, buf, 1);
+			if (buf[0] != 0x0) {
+				uint8_t mac[6];
+				debug_puts("Sending to default\r\n");
+				mem_read(default_route_mac_id, 0, mac, 6);
+				print_buf(mac, 6);
+				net_send_deferred(lookup_id, mac);
+				debug_puts("Done\r\n");
+				buf[0] = 0x00;
+				mem_write(lookup_addr_id, 0, buf, 1);
+			} else {
+				net_drop_deferred(lookup_id);
+			}
+			net_state = STATE_IDLE;
 		}
-		net_state = STATE_IDLE;
 		break;
 	default:
 		break;
@@ -389,13 +425,7 @@ void handle_ethernet(struct etherheader *header, uint16_t length,
 	uint16_t type = header->type[0] << 8;
 	type |= header->type[1] & 0xFF;
 
-	debug_puts("Type: ");
-	debug_puthex(type);
-	debug_nl();
-
 	if (type == TYPE_IPV6) {
-		debug_puts("IPv6");
-		debug_nl();
 		handle_ipv6(header->mac_source, length, dataCb, priv);
 	}
 }
@@ -445,39 +475,40 @@ void handle_ipv6(uint8_t *macSource, uint16_t length, DATA_CB dataCb,
 	calc_checksum(sourceAddr, 16);
 	calc_checksum(destAddr, 16);
 
-	debug_puts("Next Header: ");
-	debug_puthex(nextHeader);
-	debug_nl();
+	uint8_t addr[16];
 
-	debug_puts("Dest: ");
-	print_addr(destAddr);
-	debug_nl();
+	net_get_address(ADDRESS_STORE_MAIN_OFFSET, addr);
 
-	debug_puts("Own: ");
-	print_addr(ipv6_addr);
-	debug_nl();
 	/* TODO: Follow header chain until we find something valid */
 
 	bool receive = false;
 	uint8_t *destination = NULL;
-	/* Is this packet destined for us? */
-	if (memcmp(destAddr, addr_link, 16) == 0) {
+
+	if (memcmp(destAddr, addr, 16) == 0) {
 		receive = true;
-		destination = addr_link;
-	} else if (memcmp(destAddr, addr_solicited, 16) == 0) {
-		receive = true;
-		destination = addr_solicited;
-	} else if (destAddr[0] == 0xFF && destAddr[1] == 0x02
-			&& destAddr[15] == 0x1) {
-		receive = true;
-	} else if (memcmp(destAddr, ipv6_addr, 16) == 0) {
-		receive = true;
-		destination = ipv6_addr;
+		destination = addr;
 	}
 
-	debug_puts("Receive: ");
-	debug_puthex(receive);
-	debug_nl();
+	if (destination == NULL) {
+		net_get_address(ADDRESS_STORE_LINK_LOCAL_OFFSET, addr);
+		if (memcmp(destAddr, addr, 16) == 0) {
+			receive = true;
+			destination = addr;
+		}
+	}
+
+	if (destination == NULL) {
+		net_get_address(ADDRESS_STORE_SOLICITED_OFFSET, addr);
+		if (memcmp(destAddr, addr, 16) == 0) {
+			receive = true;
+			destination = addr;
+		}
+	}
+
+	if (destAddr[0] == 0xFF && destAddr[1] == 0x02 && destAddr[15] == 0x1) {
+		receive = true;
+	}
+
 	if (!receive) {
 		return;
 	}
@@ -493,7 +524,6 @@ void handle_ipv6(uint8_t *macSource, uint16_t length, DATA_CB dataCb,
 		break;
 #ifdef HAVE_TCP
 	case PROTO_TCP:
-		debug_puts("Handing to TCP");
 		debug_nl();
 		handle_tcp(macSource, sourceAddr, destination, payload_length, dataCb,
 				priv);

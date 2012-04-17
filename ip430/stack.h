@@ -30,12 +30,15 @@ extern const uint8_t	ether_bcast[];
 extern const uint8_t	null_mac[];
 extern const uint8_t	unspec_addr[];
 extern uint16_t		checksum;
-extern uint8_t		ipv6_addr[16];
+
 extern uint8_t		net_state;
 extern uint16_t default_route_mac_id;
-extern uint8_t addr_link[16]; /* Link local is special */
-extern uint8_t ipv6_addr[16]; /* TODO: Support multiple addresses */
 extern const uint8_t *enc_mac_addr;
+
+#define	ADDRESS_STORE_SIZE	(16*3)
+#define	ADDRESS_STORE_LINK_LOCAL_OFFSET	(16*0)
+#define ADDRESS_STORE_SOLICITED_OFFSET	(16*1)
+#define	ADDRESS_STORE_MAIN_OFFSET		(16*2)
 
 #define TYPE_IPV6 	0x86DD
 
@@ -86,6 +89,8 @@ typedef uint16_t(*DATA_CB)(uint8_t *buf, uint16_t count, void *priv);
 
 void net_init(const uint8_t *mac);
 void net_tick(void);
+void net_get_address(uint8_t offset, uint8_t *target);
+void net_set_address(uint8_t offset, uint8_t *source);
 
 void handle_ethernet(struct etherheader *header, uint16_t length, DATA_CB dataCb, void *priv);
 void handle_ipv6(uint8_t *macSource, uint16_t length, DATA_CB dataCb, void *priv);

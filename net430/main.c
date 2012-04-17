@@ -94,11 +94,12 @@ int main(void) {
 		if (gotChar != 0) {
 			unsigned char c = gotChar;
 			gotChar = 0;
-
+			uint8_t addr[16];
+			net_get_address(ADDRESS_STORE_MAIN_OFFSET, addr);
 			struct udp_packet_header udpHeader;
 			udpHeader.ipv6.dst_ipv6_addr = dst;
 			udpHeader.ipv6.dst_mac_addr = null_mac;
-			udpHeader.ipv6.src_ipv6_addr = ipv6_addr;
+			udpHeader.ipv6.src_ipv6_addr = addr;
 			udpHeader.sourcePort = 80;
 			udpHeader.destPort = 80;
 			net_udp_send(&udpHeader, "Test", 4);
