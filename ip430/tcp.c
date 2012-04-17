@@ -343,6 +343,9 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 		}
 		/* Echo data back ack'ing things along the way */
 		if (data_length > 0) {
+			/* Update TCB */
+			mem_write(tcb_id, tcb_no * sizeof(struct tcb), &tcb,
+					sizeof(struct tcb));
 			tcb.callback(tcb_no, tcb.tcp_state, data_length, dataCb, priv);
 //				tcp_send(&tcb, TCP_ACK, data_length);
 //				for(int i=0; i<data_length; i+=20) {
@@ -355,10 +358,11 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 //					calc_checksum(buf, count);
 //				}
 //				net_tcp_end_packet();
+		} else {
+			/* Update TCB */
+			mem_write(tcb_id, tcb_no * sizeof(struct tcb), &tcb,
+					sizeof(struct tcb));
 		}
-		/* Update TCB */
-		mem_write(tcb_id, tcb_no * sizeof(struct tcb), &tcb,
-				sizeof(struct tcb));
 		break;
 	}
 
