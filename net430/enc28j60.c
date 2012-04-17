@@ -401,14 +401,21 @@ void enc_receive_packet(void) {
 		struct etherheader etherheader;
 		enc_rbm((uint8_t*) (&etherheader), 14);
 		handle_ethernet(&etherheader, data_count, enc_read_packet, NULL);
-		while(enc_remaining_packet > 0) {
+		while (enc_remaining_packet > 0) {
 			enc_read_packet(status, 6, NULL);
 		}
 	}
 
+	uint16_t erxst = READ_REG(ENC_ERXSTL) | (READ_REG(ENC_ERXSTH) << 8);
+
 	/* Mark packet as read */
-	WRITE_REG(ENC_ERXRDPTL, enc_next_packet & 0xFF);
-	WRITE_REG(ENC_ERXRDPTH, (enc_next_packet >> 8) & 0xFF);
+	if (enc_next_packet == erxst) {
+		WRITE_REG(ENC_ERXRDPTL, READ_REG(ENC_ERXNDL));
+		WRITE_REG(ENC_ERXRDPTH, READ_REG(ENC_ERXNDH));
+	} else {
+		WRITE_REG(ENC_ERXRDPTL, (enc_next_packet-1) & 0xFF);
+		WRITE_REG(ENC_ERXRDPTH, ((enc_next_packet-1) >> 8) & 0xFF);
+	}
 	SET_REG_BITS(ENC_ECON2, ENC_ECON2_PKTDEC);
 }
 
@@ -499,8 +506,6 @@ void net_send_end_internal(void) {
 		uint8_t r = READ_REG(ENC_ECON1);
 		if ((r & ENC_ECON1_TXRTS) == 0)
 			break;
-		debug_puts(".");
-		__delay_cycles(200);
 	}
 
 	/* Read status bits */
