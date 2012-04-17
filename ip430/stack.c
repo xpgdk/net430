@@ -32,7 +32,7 @@ uint16_t default_route_mac_id;
 
 static uint8_t const *address_lookup = NULL;
 static int16_t lookup_id;
-static uint8_t lookup_addr[16];
+static uint16_t lookup_addr_id;
 
 #define ADDR_MAP_SIZE	10
 
@@ -90,10 +90,15 @@ void register_mac_addr(const uint8_t *mac, const uint8_t *addr) {
 	print_addr(addr);
 	print_buf(mac, 6);
 
-	if (lookup_addr[0] != 0x0) {
-		if (memcmp(lookup_addr, addr, 16) == 0) {
+	uint8_t buf[16];
+
+	mem_read(lookup_addr_id, 0, buf, 16);
+
+	if (buf[0] != 0x0) {
+		if (memcmp(buf, addr, 16) == 0) {
 			net_send_deferred(lookup_id, mac);
-			lookup_addr[0] = 0x00;
+			buf[0] = 0x00;
+			mem_write(lookup_addr_id, 0, buf, 16);
 		}
 	}
 }
@@ -152,8 +157,9 @@ void net_init(const uint8_t *mac) {
 	memset(ipv6_addr, 0x00, 16);
 	addr_map_id = mem_alloc(sizeof(struct addr_map_entry) * ADDR_MAP_SIZE);
 
-	default_route_mac_id = mem_alloc(16);
+	default_route_mac_id = mem_alloc(6);
 	eui64_id = mem_alloc(8);
+	lookup_addr_id = mem_alloc(16);
 
 	debug_puts("MEM FREE:");
 	debug_puthex(mem_free());
@@ -312,10 +318,10 @@ void net_end_ipv6_packet() {
 	net_send_end();
 
 	if (address_lookup != NULL) {
-		memcpy(lookup_addr, address_lookup, 16);
+		mem_write(lookup_addr_id, 0, address_lookup, 16);
 		/* Perform neighbor solicitation */
 		debug_puts("Lookup of ");
-		print_addr(lookup_addr);
+		print_addr(address_lookup);
 		debug_puts("\r\n");
 		send_neighbor_solicitation(ether_bcast, addr_link, address_lookup,
 				address_lookup);
@@ -324,6 +330,7 @@ void net_end_ipv6_packet() {
 }
 
 void net_tick(void) {
+	uint8_t buf[1];
 	switch (net_state) {
 	case STATE_DAD:
 		net_state = STATE_IDLE;
@@ -334,14 +341,16 @@ void net_tick(void) {
 		/* Ready to communicate */
 		break;
 	case STATE_WAITING_ADVERTISMENT:
-		if (lookup_addr[0] != 0x0) {
+		mem_read(lookup_addr_id, 0, buf, 1);
+		if (buf[0] != 0x0) {
 			uint8_t mac[6];
 			debug_puts("Sending to default\r\n");
 			mem_read(default_route_mac_id, 0, mac, 6);
 			print_buf(mac, 6);
 			net_send_deferred(lookup_id, mac);
 			debug_puts("Done\r\n");
-			lookup_addr[0] = 0x00;
+			buf[0] = 0x00;
+			mem_write(lookup_addr_id, 0, buf, 1);
 		} else {
 			net_drop_deferred(lookup_id);
 		}

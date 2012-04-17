@@ -33,7 +33,7 @@ extern uint16_t		checksum;
 extern uint8_t		ipv6_addr[16];
 extern uint8_t		net_state;
 extern uint16_t default_route_mac_id;
-extern uint8_t addr_link[20]; /* Link local is special */
+extern uint8_t addr_link[16]; /* Link local is special */
 extern uint8_t ipv6_addr[16]; /* TODO: Support multiple addresses */
 extern const uint8_t *enc_mac_addr;
 

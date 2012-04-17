@@ -103,7 +103,7 @@ void handle_icmp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 
 				if (ipv6_addr[0] == 0x00) {
 					assign_address_from_prefix(c + 16, prefixLength);
-					mem_write(default_route_mac_id, 0, macSource, 16);
+					mem_write(default_route_mac_id, 0, macSource, 6);
 				} else {
 
 				}
