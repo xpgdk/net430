@@ -21,7 +21,8 @@ void uart_rx_isr(unsigned char c) {
 	gotChar = c;
 }
 
-void server_callback(int socket, uint8_t new_state, uint16_t count, DATA_CB data, void *priv) {
+void server_callback(int socket, uint8_t new_state, uint16_t count,
+		DATA_CB data, void *priv) {
 	debug_puts("State: ");
 	debug_puthex(new_state);
 	debug_nl();
@@ -30,11 +31,11 @@ void server_callback(int socket, uint8_t new_state, uint16_t count, DATA_CB data
 	debug_puthex(count);
 	debug_nl();
 
-	if( count > 0) {
+	if (count > 0) {
 		gotData = true;
 	}
 
-	if( new_state == TCP_STATE_CLOSED) {
+	if (new_state == TCP_STATE_CLOSED) {
 		closed = true;
 	}
 }
@@ -43,6 +44,13 @@ const static uint8_t dst[] = { 0x20, 0x01, 0x16, 0xd8, 0xdd, 0xaa, 0x00, 0x1,
 		0x02, 0x23, 0x54, 0xff, 0xfe, 0xd5, 0x46, 0xf0 };
 
 const static char myMessage[] = "Got your message, sir\n";
+
+const static char httpResponseHeader[] = "HTTP/1.1 200 OK\r\n"
+		"Server: net430\r\n"
+		"Content-Type: text/html\r\n\r\nUsage counter";
+#define RESPONSE_HEADER_SIZE (sizeof(httpResponseHeader)-1)
+
+uint16_t requestCounter = 0;
 
 int main(void) {
 	WDTCTL = WDTPW + WDTHOLD; // Stop WDT
@@ -74,15 +82,32 @@ int main(void) {
 	debug_nl();
 
 	while (1) {
-
 		net_tick();
 		if (!enc_idle) {
 			enc_action();
 		}
 
 		if (gotData) {
+			gotData = false;
 
-			tcp_send(server_sock, myMessage, sizeof(myMessage));
+			uint8_t buf[5];
+			uint16_t contentlength;
+
+			contentlength = 17;
+
+			itoa(contentlength, buf, 10);
+
+			tcp_send(server_sock, httpResponseHeader, RESPONSE_HEADER_SIZE);
+#if 0
+			tcp_send_start(server_sock,
+					RESPONSE_HEADER_SIZE + 4 + 17);
+			tcp_send_data(httpResponseHeader, RESPONSE_HEADER_SIZE);
+			tcp_send_data("\r\n\r\n", 4);
+			tcp_send_data("Request Counter: ", 17);
+			tcp_send_end();
+#endif
+
+			tcp_close(server_sock);
 			gotData = false;
 		}
 
@@ -91,7 +116,9 @@ int main(void) {
 			closed = false;
 		}
 
+#if 0
 		if (gotChar != 0) {
+
 			unsigned char c = gotChar;
 			gotChar = 0;
 			uint8_t addr[16];
@@ -104,8 +131,9 @@ int main(void) {
 			udpHeader.destPort = 80;
 			net_udp_send(&udpHeader, "Test", 4);
 		}
+#endif
 
-		if (enc_idle && !gotChar) {
+		if (enc_idle /*&& !gotChar*/) {
 			__bis_SR_register(CPUOFF | GIE);
 		}
 	}
