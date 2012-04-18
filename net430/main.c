@@ -16,6 +16,7 @@ const uint8_t mac_addr[] = { 0xea, 0x75, 0xbf, 0x72, 0x0f, 0x3d };
 static unsigned char gotChar = 0;
 static bool gotData = false;
 static bool closed = false;
+static bool sendRequest = false;
 
 void uart_rx_isr(unsigned char c) {
 	gotChar = c;
@@ -40,6 +41,20 @@ void server_callback(int socket, uint8_t new_state, uint16_t count,
 	}
 }
 
+void client_callback(int socket, uint8_t new_state, uint16_t count,
+		DATA_CB data, void *priv) {
+	debug_puts("Client state: ");
+	debug_puthex(new_state);
+	debug_nl();
+
+	if (new_state == TCP_STATE_ESTABLISHED && count == 0) {
+		sendRequest = true;
+	}
+	if (new_state == TCP_STATE_CLOSED) {
+		P2IE |= BIT1;
+	}
+}
+
 const static uint8_t dst[] = { 0x20, 0x01, 0x16, 0xd8, 0xdd, 0xaa, 0x00, 0x1,
 		0x02, 0x23, 0x54, 0xff, 0xfe, 0xd5, 0x46, 0xf0 };
 
@@ -49,6 +64,11 @@ const static char httpResponseHeader[] = "HTTP/1.1 200 OK\r\n"
 		"Server: net430\r\n"
 		"Content-Type: text/html\r\n\r\nUsage counter";
 #define RESPONSE_HEADER_SIZE (sizeof(httpResponseHeader)-1)
+
+const static char httpRequest[] = "GET /~pf/test.php HTTP/1.1\r\n"
+		"Host: localhost\r\n\r\n";
+
+static bool sendSignal = false;
 
 uint16_t requestCounter = 0;
 
@@ -62,6 +82,14 @@ int main(void) {
 	unsigned char c;
 	uart_getc(&c);
 
+	P2DIR &= ~BIT1;
+	P2REN |= BIT1;
+	P2OUT |= BIT1;
+	P2IES |= BIT1;
+	P2IFG = 0;
+	P2IE |= BIT1;
+
+
 	// register ISR called when data was received
 	uart_set_rx_isr_ptr(uart_rx_isr);
 
@@ -73,6 +101,8 @@ int main(void) {
 
 	enc_init(mac_addr);
 	net_init(mac_addr);
+
+	int client_socket = tcp_socket(client_callback);
 
 	int server_sock = tcp_socket(server_callback);
 	tcp_listen(server_sock, 8000);
@@ -116,20 +146,31 @@ int main(void) {
 			closed = false;
 		}
 
-#if 0
-		if (gotChar != 0) {
-
-			unsigned char c = gotChar;
-			gotChar = 0;
+		if (sendRequest) {
+			sendRequest = false;
+			tcp_send(client_socket, httpRequest, sizeof(httpRequest) - 1);
+			tcp_close(client_socket);
+		}
+#if 1
+		if (sendSignal) {
 			uint8_t addr[16];
+			debug_puts("Button pressed");
+			debug_nl();
 			net_get_address(ADDRESS_STORE_MAIN_OFFSET, addr);
-			struct udp_packet_header udpHeader;
-			udpHeader.ipv6.dst_ipv6_addr = dst;
-			udpHeader.ipv6.dst_mac_addr = null_mac;
-			udpHeader.ipv6.src_ipv6_addr = addr;
-			udpHeader.sourcePort = 80;
-			udpHeader.destPort = 80;
-			net_udp_send(&udpHeader, "Test", 4);
+			tcp_connect(client_socket, addr, dst, 80);
+			sendSignal = false;
+			/*
+			 unsigned char c = gotChar;
+			 gotChar = 0;
+			 uint8_t addr[16];
+			 net_get_address(ADDRESS_STORE_MAIN_OFFSET, addr);
+			 struct udp_packet_header udpHeader;
+			 udpHeader.ipv6.dst_ipv6_addr = dst;
+			 udpHeader.ipv6.dst_mac_addr = null_mac;
+			 udpHeader.ipv6.src_ipv6_addr = addr;
+			 udpHeader.sourcePort = 80;
+			 udpHeader.destPort = 80;
+			 net_udp_send(&udpHeader, "Test", 4);*/
 		}
 #endif
 
@@ -147,4 +188,15 @@ PORT1_ISR(void) {
 	}
 
 	P1IFG = 0;
+}
+
+void __attribute__((interrupt PORT2_VECTOR))
+PORT2_ISR(void) {
+	if (P2IFG & BIT1) {
+		sendSignal = true;
+		P2IE &= ~BIT1;
+		__bic_SR_register_on_exit(CPUOFF);
+	}
+
+	P2IFG = 0;
 }
