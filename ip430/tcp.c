@@ -284,6 +284,16 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 	 lost packages */
 
 	switch (tcb.tcp_state) {
+	case TCP_STATE_SYN_SENT:
+		if ( (flags & TCP_ACK) && (flags & TCP_SYN) ) {
+			tcb.tcp_state = TCP_STATE_ESTABLISHED;
+			tcp_send_packet(&tcb, TCP_ACK, 0);
+			net_tcp_end_packet();
+			/* Update TCB */
+			mem_write(tcb_id, tcb_no * sizeof(struct tcb), &tcb,
+					sizeof(struct tcb));
+		}
+	break;
 	case TCP_STATE_FIN_WAIT_2:
 		if (flags & TCP_ACK) {
 			tcb.tcp_state = TCP_STATE_TIME_WAIT;
@@ -450,6 +460,32 @@ void tcp_close(int socket) {
 	tcp_send_packet(&tcb, TCP_FIN|TCP_ACK, 0);
 	net_tcp_end_packet();
 	tcb.tcp_state = TCP_STATE_FIN_WAIT_2;
+	mem_write(tcb_id, socket * sizeof(struct tcb), (uint8_t*) &tcb,
+			sizeof(struct tcb));
+}
+
+void tcp_connect(int socket, uint8_t *local_addr, uint8_t *remote_addr, uint16_t port) {
+	struct tcb tcb;
+	mem_read(tcb_id, socket * sizeof(struct tcb), (uint8_t*) &tcb,
+			sizeof(struct tcb));
+	tcb.tcp_state = TCP_STATE_SYN_SENT;
+
+	tcb.tcp_local_port = 45302;
+	tcb.tcp_remote_port = port;
+	memcpy(tcb.local_addr, local_addr, 16);
+	memcpy(tcb.remote_addr, remote_addr, 16);
+	tcb.tcp_irs = 0;
+	tcb.tcp_rcv_wnd = RECV_WINDOW;
+	tcb.tcp_rcv_nxt = 0;
+
+	tcb.tcp_iss = 312;
+	tcb.tcp_snd_wnd = 0;
+	tcb.tcp_snd_una = tcb.tcp_iss;
+	tcb.tcp_snd_nxt = tcb.tcp_iss + 1;
+
+	tcp_send_packet(&tcb, TCP_SYN, 0);
+	net_tcp_end_packet();
+
 	mem_write(tcb_id, socket * sizeof(struct tcb), (uint8_t*) &tcb,
 			sizeof(struct tcb));
 }
