@@ -17,10 +17,10 @@
 #define TCP_STATE_SYN_RECEIVED 		4
 #define TCP_STATE_ESTABLISHED		5
 #define TCP_STATE_CLOSE_WAIT		6
-#define TCP_STATE_LAST_ACK		7
+#define TCP_STATE_LAST_ACK			7
 #define TCP_STATE_FIN_WAIT_1		8
 #define TCP_STATE_FIN_WAIT_2		9
-#define	TCP_STATE_TIME_WAIT		10
+#define	TCP_STATE_TIME_WAIT			10
 
 typedef void (*tcp_callback)(int,  uint8_t, uint16_t, DATA_CB , void *);
 
