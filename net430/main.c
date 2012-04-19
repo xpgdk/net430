@@ -55,18 +55,24 @@ void client_callback(int socket, uint8_t new_state, uint16_t count,
 	}
 }
 
+#if 0
 const static uint8_t dst[] = { 0x20, 0x01, 0x16, 0xd8, 0xdd, 0xaa, 0x00, 0x1,
 		0x02, 0x23, 0x54, 0xff, 0xfe, 0xd5, 0x46, 0xf0 };
+#endif
+
+const static uint8_t dst[] = { 0x26, 0x07, 0xf2, 0x98, 0x00, 0x2, 0x01, 0x20,
+		0x00, 0x00, 0x00, 0x00, 0x0d, 0x83, 0xc0, 0xdc };
 
 const static char myMessage[] = "Got your message, sir\n";
 
-const static char httpResponseHeader[] = "HTTP/1.1 200 OK\r\n"
-		"Server: net430\r\n"
-		"Content-Type: text/html\r\n\r\nUsage counter";
+const static char httpResponseHeader[] =
+		"HTTP/1.1 200 OK\r\n"
+				"Server: net430\r\n"
+				"Content-Type: text/html\r\n\r\n<html><head><meta http-equiv=\"Refresh\" content=\"5\"></head><body>Usage counter</body></html>";
 #define RESPONSE_HEADER_SIZE (sizeof(httpResponseHeader)-1)
 
-const static char httpRequest[] = "GET /~pf/test.php HTTP/1.1\r\n"
-		"Host: localhost\r\n\r\n";
+const static char httpRequest[] = "GET /net430-test.php HTTP/1.1\r\n"
+		"Host: xpg.dk\r\n\r\n";
 
 static bool sendSignal = false;
 
@@ -88,7 +94,6 @@ int main(void) {
 	P2IES |= BIT1;
 	P2IFG = 0;
 	P2IE |= BIT1;
-
 
 	// register ISR called when data was received
 	uart_set_rx_isr_ptr(uart_rx_isr);

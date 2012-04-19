@@ -19,6 +19,15 @@ struct addr_map_entry {
 	uint8_t addr[16];
 };
 
+#define	ROUTING_TABLE_FLAG_USED		(1<<0)
+
+struct routing_table_entry {
+	uint8_t prefix[16];
+	uint8_t prefixLength;
+	uint8_t flags;
+	uint8_t nextHopMac[6];
+};
+
 /* State variables */
 uint16_t checksum;
 const uint8_t *enc_mac_addr;
@@ -30,16 +39,17 @@ static bool doLookup;
 /* We store three addresses in the address store (42 bytes)*/
 uint16_t address_store;
 
-uint16_t default_route_mac_id;
-
 static uint8_t const *address_lookup = NULL;
 static int16_t lookup_id;
 static uint16_t lookup_addr_id;
 
 #define ADDR_MAP_SIZE	10
-
 static uint16_t addr_map_id;
 static uint16_t addr_map_next = 0;
+
+#define ROUTING_TABLE_COUNT 10
+#define ROUTING_TABLE_SIZE	(ROUTING_TABLE_COUNT*sizeof(struct routing_table_entry))
+static uint16_t routing_table;
 
 const uint8_t solicited_mcast_prefix[] = { 0xFF, 0x02, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xFF, 0x00 };
@@ -64,6 +74,74 @@ void net_get_address(uint8_t offset, uint8_t *target) {
 
 void net_set_address(uint8_t offset, uint8_t *source) {
 	mem_write(address_store, offset, source, 16);
+}
+
+bool routing_table_lookup(const uint8_t *destAddr, uint8_t *nextHopMac) {
+	struct routing_table_entry entry;
+	bool found = false;
+	uint8_t prefixLength = 0;
+
+	debug_puts("routing_table_lookup: ");
+	print_addr(destAddr);
+	debug_nl();
+	for (int i = 0; i < ROUTING_TABLE_COUNT; i++) {
+		mem_read(routing_table, i * sizeof(struct routing_table_entry), &entry,
+				sizeof(struct routing_table_entry));
+		debug_puts("Testing: ");
+		print_addr(entry.prefix);
+		debug_puts("/");
+		debug_puthex(entry.prefixLength);
+		debug_puts(" -> ");
+		print_buf(entry.nextHopMac, 6);
+		debug_nl();
+
+		if (entry.flags == 0) {
+			break;
+		}
+
+		if (memcmp(destAddr, entry.prefix, entry.prefixLength) == 0
+				&& entry.prefixLength >= prefixLength) {
+			memcpy(nextHopMac, entry.nextHopMac, 6);
+			debug_puts(" Match");
+			debug_nl();
+			found = true;
+		}
+		debug_nl();
+	}
+
+	return found;
+}
+
+bool routing_table_add(const uint8_t *prefix, uint8_t prefixLength,
+		const uint8_t *nextHopMac) {
+	struct routing_table_entry entry;
+
+	for (int i = 0; i < ROUTING_TABLE_COUNT; i++) {
+		mem_read(routing_table, i * sizeof(struct routing_table_entry), &entry,
+				sizeof(struct routing_table_entry));
+		debug_puts("Flags: ");
+		debug_puthex(entry.flags);
+		debug_nl();
+		if (entry.flags == 0) {
+			debug_puts("Added entry to routing table: ");
+			print_addr(prefix);
+			debug_puts("/");
+			debug_puthex(prefixLength);
+			debug_puts(" -> ");
+			print_buf(nextHopMac, 6);
+			debug_nl();
+			memcpy(entry.prefix, prefix, 16);
+			memcpy(entry.nextHopMac, nextHopMac, 6);
+			entry.prefixLength = prefixLength;
+			entry.flags = ROUTING_TABLE_FLAG_USED;
+			mem_write(routing_table, i * sizeof(struct routing_table_entry),
+					&entry, sizeof(struct routing_table_entry));
+			return true;
+		}
+	}
+	debug_puts("Routing table full");
+	debug_nl();
+	return false;
 }
 
 void assign_address_from_prefix(uint8_t *addr, uint8_t prefixLength) {
@@ -169,10 +247,11 @@ void net_init(const uint8_t *mac) {
 #endif
 	addr_map_id = mem_alloc(sizeof(struct addr_map_entry) * ADDR_MAP_SIZE);
 
-	default_route_mac_id = mem_alloc(6);
 	eui64_id = mem_alloc(8);
 	lookup_addr_id = mem_alloc(16);
 	address_store = mem_alloc(ADDRESS_STORE_SIZE);
+
+	routing_table = mem_alloc(ROUTING_TABLE_SIZE);
 
 	debug_puts("MEM FREE:");
 	debug_puthex(mem_free());
@@ -281,25 +360,29 @@ void net_start_ipv6_packet(struct ipv6_packet_arg *arg) {
 
 	memcpy(header.mac_source, enc_mac_addr, 6);
 
-	if (is_null_mac(arg->dst_mac_addr)) {
-		/* If we got no link-level destination, we need to consult the
-		 cache...
-		 */
+	address_lookup = NULL;
 
-		if (!find_mac_addr(header.mac_dest, arg->dst_ipv6_addr)) {
-			/* If that fails, send a neighbor solicitation. But we need to store
-			 the packet in secondary memory instead of transmitting it, until we have
-			 the destination link-level address.
-			 net_send_start() will deal with that as long as we use an all zero dst_mac_addr.
+	if (is_null_mac(arg->dst_mac_addr)) {
+		if (!routing_table_lookup(arg->dst_ipv6_addr, header.mac_dest)) {
+			debug_puts("We are into trouble...");
+		}
+
+		if (is_null_mac(header.mac_dest)) {
+			/* If we got no link-level destination, we need to do something...
 			 */
-			address_lookup = arg->dst_ipv6_addr;
-			debug_puts("MAC not found\n");
-			memcpy(header.mac_dest, null_mac, 6);
-		} else {
-			address_lookup = NULL;
+
+			if (!find_mac_addr(header.mac_dest, arg->dst_ipv6_addr)) {
+				/* If that fails, send a neighbor solicitation. But we need to store
+				 the packet in secondary memory instead of transmitting it, until we have
+				 the destination link-level address.
+				 net_send_start() will deal with that as long as we use an all zero dst_mac_addr.
+				 */
+				address_lookup = arg->dst_ipv6_addr;
+				debug_puts("MAC not found\n");
+				memcpy(header.mac_dest, null_mac, 6);
+			}
 		}
 	} else {
-		address_lookup = NULL;
 		memcpy(header.mac_dest, arg->dst_mac_addr, 6);
 	}
 
@@ -376,17 +459,17 @@ void net_tick(void) {
 			send_neighbor_solicitation(ether_bcast, addr, address_lookup,
 					address_lookup);
 		} else {
-			mem_read(lookup_addr_id, 0, buf, 1);
-			if (buf[0] != 0x0) {
-				uint8_t mac[6];
-				debug_puts("Sending to default\r\n");
-				mem_read(default_route_mac_id, 0, mac, 6);
-				print_buf(mac, 6);
-				net_send_deferred(lookup_id, mac);
-				debug_puts("Done\r\n");
-				buf[0] = 0x00;
-				mem_write(lookup_addr_id, 0, buf, 1);
-			} else {
+			/*mem_read(lookup_addr_id, 0, buf, 1);
+			 if (buf[0] != 0x0) {
+			 uint8_t mac[6];
+			 debug_puts("Sending to default\r\n");
+			 mem_read(default_route_mac_id, 0, mac, 6);
+			 print_buf(mac, 6);
+			 net_send_deferred(lookup_id, mac);
+			 debug_puts("Done\r\n");
+			 buf[0] = 0x00;
+			 mem_write(lookup_addr_id, 0, buf, 1);
+			 } else*/{
 				net_drop_deferred(lookup_id);
 			}
 			net_state = STATE_IDLE;

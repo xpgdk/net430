@@ -105,8 +105,13 @@ void handle_icmp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 				uint8_t buf[16];
 				net_get_address(ADDRESS_STORE_MAIN_OFFSET, buf);
 				if (buf[0] == 0x00) {
+					// null_mac as destination means link-local (go figure)
+					routing_table_add(c+ 16, prefixLength/8, null_mac);
+
+					// Default route
+					routing_table_add(unspec_addr, 0, macSource);
 					assign_address_from_prefix(c + 16, prefixLength);
-					mem_write(default_route_mac_id, 0, macSource, 6);
+					//mem_write(default_route_mac_id, 0, macSource, 6);
 				} else {
 
 				}
