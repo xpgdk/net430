@@ -31,25 +31,34 @@ struct routing_table_entry {
 /* State variables */
 uint16_t checksum;
 const uint8_t *enc_mac_addr;
-uint16_t eui64_id;
+//uint16_t eui64_id;
 uint8_t net_state;
 
 static bool doLookup;
 
 /* We store three addresses in the address store (42 bytes)*/
-uint16_t address_store;
+//uint16_t address_store;
 
 static uint8_t const *address_lookup = NULL;
 static int16_t lookup_id;
-static uint16_t lookup_addr_id;
+static uint16_t net_store_id;
+//static uint16_t lookup_addr_id;
 
-#define ADDR_MAP_SIZE	10
-static uint16_t addr_map_id;
+#define ADDR_MAP_COUNT	10
+#define ADDR_MAP_SIZE 	(ADDR_MAP_COUNT*sizeof(struct addr_map_entry))
+//static uint16_t addr_map_id;
 static uint16_t addr_map_next = 0;
 
 #define ROUTING_TABLE_COUNT 10
 #define ROUTING_TABLE_SIZE	(ROUTING_TABLE_COUNT*sizeof(struct routing_table_entry))
-static uint16_t routing_table;
+//static uint16_t routing_table;
+
+#define NET_STORE_SIZE (ADDR_MAP_SIZE + ADDRESS_STORE_SIZE + ROUTING_TABLE_SIZE + 8 + 16)
+#define ADDR_MAP_OFFSET			0
+#define ADDR_STORE_OFFSET 		(ADDR_MAP_OFFSET + ADDR_MAP_SIZE)
+#define ROUTING_TABLE_OFFSET	(ADDR_STORE_OFFSET + ADDRESS_STORE_SIZE)
+#define EUI_OFFSET				(ROUTING_TABLE_OFFSET + ROUTING_TABLE_SIZE)
+#define LOOKUP_OFFSET			(EUI_OFFSET + 8)
 
 const uint8_t solicited_mcast_prefix[] = { 0xFF, 0x02, 0x00, 0x00, 0x00, 0x00,
 		0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0xFF, 0x00 };
@@ -69,11 +78,11 @@ void construct_solicited_mcast_addr(uint8_t *solicited_mcast,
 bool has_ipv6_addr(const uint8_t *ipaddr);
 
 void net_get_address(uint8_t offset, uint8_t *target) {
-	mem_read(address_store, offset, target, 16);
+	mem_read(net_store_id, ADDR_STORE_OFFSET+offset, target, 16);
 }
 
 void net_set_address(uint8_t offset, uint8_t *source) {
-	mem_write(address_store, offset, source, 16);
+	mem_write(net_store_id, ADDR_STORE_OFFSET+offset, source, 16);
 }
 
 bool routing_table_lookup(const uint8_t *destAddr, uint8_t *nextHopMac) {
@@ -84,8 +93,11 @@ bool routing_table_lookup(const uint8_t *destAddr, uint8_t *nextHopMac) {
 	debug_puts("routing_table_lookup: ");
 	print_addr(destAddr);
 	debug_nl();
+	debug_puts("mem ID: ");
+	debug_puthex(net_store_id + ROUTING_TABLE_OFFSET);
+	debug_nl();
 	for (int i = 0; i < ROUTING_TABLE_COUNT; i++) {
-		mem_read(routing_table, i * sizeof(struct routing_table_entry), &entry,
+		mem_read(net_store_id, ROUTING_TABLE_OFFSET + (i * sizeof(struct routing_table_entry)), &entry,
 				sizeof(struct routing_table_entry));
 		debug_puts("Testing: ");
 		print_addr(entry.prefix);
@@ -117,7 +129,7 @@ bool routing_table_add(const uint8_t *prefix, uint8_t prefixLength,
 	struct routing_table_entry entry;
 
 	for (int i = 0; i < ROUTING_TABLE_COUNT; i++) {
-		mem_read(routing_table, i * sizeof(struct routing_table_entry), &entry,
+		mem_read(net_store_id, ROUTING_TABLE_OFFSET + (i * sizeof(struct routing_table_entry)), &entry,
 				sizeof(struct routing_table_entry));
 		debug_puts("Flags: ");
 		debug_puthex(entry.flags);
@@ -134,7 +146,7 @@ bool routing_table_add(const uint8_t *prefix, uint8_t prefixLength,
 			memcpy(entry.nextHopMac, nextHopMac, 6);
 			entry.prefixLength = prefixLength;
 			entry.flags = ROUTING_TABLE_FLAG_USED;
-			mem_write(routing_table, i * sizeof(struct routing_table_entry),
+			mem_write(net_store_id, ROUTING_TABLE_OFFSET + (i * sizeof(struct routing_table_entry)),
 					&entry, sizeof(struct routing_table_entry));
 			return true;
 		}
@@ -152,7 +164,7 @@ void assign_address_from_prefix(uint8_t *addr, uint8_t prefixLength) {
 
 	uint8_t eui64[8];
 
-	mem_read(eui64_id, 0, eui64, 8);
+	mem_read(net_store_id, EUI_OFFSET, eui64, 8);
 
 	uint8_t ipv6_addr[16];
 	memcpy(ipv6_addr, addr, prefixLength / 8);
@@ -167,14 +179,14 @@ void register_mac_addr(const uint8_t *mac, const uint8_t *addr) {
 		return;
 	}
 	//mem_read(addr_map_id, addt_map_next*sizeof(struct addr_map_entry), &e, count);
-	mem_write(addr_map_id, addr_map_next * sizeof(struct addr_map_entry), mac,
+	mem_write(net_store_id, ADDR_MAP_OFFSET + (addr_map_next * sizeof(struct addr_map_entry)), mac,
 			6);
-	mem_write(addr_map_id, addr_map_next * sizeof(struct addr_map_entry) + 6,
+	mem_write(net_store_id, ADDR_MAP_OFFSET + (addr_map_next * sizeof(struct addr_map_entry)) + 6,
 			addr, 16);
 	/*memcpy(addr_map[addr_map_next].mac, mac, 6);
 	 memcpy(addr_map[addr_map_next].addr, addr, 16);*/
 
-	addr_map_next = (addr_map_next + 1) % ADDR_MAP_SIZE;
+	addr_map_next = (addr_map_next + 1) % ADDR_MAP_COUNT;
 
 	debug_puts("Stored address in cache:");
 	print_addr(addr);
@@ -182,24 +194,24 @@ void register_mac_addr(const uint8_t *mac, const uint8_t *addr) {
 
 	uint8_t buf[16];
 
-	mem_read(lookup_addr_id, 0, buf, 16);
+	mem_read(net_store_id, LOOKUP_OFFSET, buf, 16);
 
 	if (buf[0] != 0x0) {
 		if (memcmp(buf, addr, 16) == 0) {
 			net_send_deferred(lookup_id, mac);
 			buf[0] = 0x00;
-			mem_write(lookup_addr_id, 0, buf, 16);
+			mem_write(net_store_id, LOOKUP_OFFSET, buf, 16);
 		}
 	}
 }
 
 bool find_mac_addr(uint8_t *mac, const uint8_t *addr) {
-	for (int i = 0; i < ADDR_MAP_SIZE; i++) {
+	for (int i = 0; i < ADDR_MAP_COUNT; i++) {
 		uint8_t addr_map[16];
-		mem_read(addr_map_id, i * sizeof(struct addr_map_entry) + 6, addr_map,
+		mem_read(net_store_id, ADDR_MAP_OFFSET + (i * sizeof(struct addr_map_entry)) + 6, addr_map,
 				16);
 		if (memcmp(addr, addr_map, 16) == 0) {
-			mem_read(addr_map_id, i * sizeof(struct addr_map_entry), mac, 6);
+			mem_read(net_store_id, ADDR_MAP_OFFSET + (i * sizeof(struct addr_map_entry)), mac, 6);
 			return true;
 		}
 	}
@@ -207,9 +219,9 @@ bool find_mac_addr(uint8_t *mac, const uint8_t *addr) {
 }
 
 bool has_ipv6_addr(const uint8_t *ipaddr) {
-	for (int i = 0; i < ADDR_MAP_SIZE; i++) {
+	for (int i = 0; i < ADDR_MAP_COUNT; i++) {
 		uint8_t addr_map[16];
-		mem_read(addr_map_id, i * sizeof(struct addr_map_entry) + 6, addr_map,
+		mem_read(net_store_id, ADDR_MAP_OFFSET + (i * sizeof(struct addr_map_entry)) + 6, addr_map,
 				16);
 		if (memcmp(ipaddr, addr_map, 16) == 0) {
 			return true;
@@ -245,14 +257,16 @@ void net_init(const uint8_t *mac) {
 #ifdef HAVE_TCP
 	tcp_init();
 #endif
-	addr_map_id = mem_alloc(sizeof(struct addr_map_entry) * ADDR_MAP_SIZE);
+	net_store_id = mem_alloc(NET_STORE_SIZE);
+#if 0
+	addr_map_id = mem_alloc(sizeof(struct addr_map_entry) * ADDR_MAP_COUNT);
 
 	eui64_id = mem_alloc(8);
 	lookup_addr_id = mem_alloc(16);
 	address_store = mem_alloc(ADDRESS_STORE_SIZE);
 
 	routing_table = mem_alloc(ROUTING_TABLE_SIZE);
-
+#endif
 	debug_puts("MEM FREE:");
 	debug_puthex(mem_free());
 	debug_puts("\r\n");
@@ -272,7 +286,7 @@ void net_init(const uint8_t *mac) {
 	eui64[6] = enc_mac_addr[4];
 	eui64[7] = enc_mac_addr[5];
 
-	mem_write(eui64_id, 0, eui64, 8);
+	mem_write(net_store_id, EUI_OFFSET, eui64, 8);
 
 	debug_puts("EUI-64: ");
 	print_buf(eui64, 8);
@@ -417,7 +431,7 @@ void net_end_ipv6_packet() {
 	net_send_end();
 
 	if (address_lookup != NULL) {
-		mem_write(lookup_addr_id, 0, address_lookup, 16);
+		mem_write(net_store_id, LOOKUP_OFFSET, address_lookup, 16);
 		doLookup = true;
 #if 0
 		/* Perform neighbor solicitation */

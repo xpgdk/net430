@@ -10,7 +10,7 @@
 #define RECV_WINDOW		1500
 
 static uint16_t tcb_id;
-static uint16_t tcb_count;
+static uint8_t tcb_count;
 
 /**
  TODO: Add retransmission queue and a timer tick to retransmit packages.
