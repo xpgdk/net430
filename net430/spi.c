@@ -7,7 +7,7 @@ void spi_init(void) {
 	UCB0CTL0 = UCCKPH | UCMSB | UCMST | UCMODE_0 | UCSYNC;
 	UCB0CTL1 |= UCSSEL_2;
 
-	UCB0BR0 = 12;
+	UCB0BR0 = 4;
 	UCB0BR1 = 0x0;
 
 	P1SEL |= BIT5 | BIT6 | BIT7;

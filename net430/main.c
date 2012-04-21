@@ -11,6 +11,8 @@
 #include "udp.h"
 #include "tcp.h"
 
+#include "rfm.h"
+
 const uint8_t mac_addr[] = { 0xea, 0x75, 0xbf, 0x72, 0x0f, 0x3d };
 
 static unsigned char gotChar = 0;
@@ -63,25 +65,27 @@ const static uint8_t dst[] = { 0x20, 0x01, 0x16, 0xd8, 0xdd, 0xaa, 0x00, 0x1,
 const static uint8_t dst[] = { 0x26, 0x07, 0xf2, 0x98, 0x00, 0x2, 0x01, 0x20,
 		0x00, 0x00, 0x00, 0x00, 0x0d, 0x83, 0xc0, 0xdc };
 
-const static char myMessage[] = "Got your message, sir\n";
-
 const static char httpResponseHeader[] =
 		"HTTP/1.1 200 OK\r\n"
 				"Server: net430\r\n"
 				"Content-Type: text/html\r\n\r\n<html><head><meta http-equiv=\"Refresh\" content=\"5\"></head><body>Usage counter</body></html>";
 #define RESPONSE_HEADER_SIZE (sizeof(httpResponseHeader)-1)
 
-const static char httpRequest[] = "GET /net430-test.php HTTP/1.1\r\n"
+const static char httpRequest[] = "GET /snail-notify.php HTTP/1.1\r\n"
 		"Host: xpg.dk\r\n\r\n";
 
 static bool sendSignal = false;
 
 uint16_t requestCounter = 0;
 
+#define PACKET_BAT_LEVEL 	0xF1
+#define PACKET_ACK			0xF2
+#define PACKET_SIGNAL		0xF3
+
 int main(void) {
 	WDTCTL = WDTPW + WDTHOLD; // Stop WDT
-	BCSCTL1 = CALBC1_12MHZ; // Set DCO
-	DCOCTL = CALDCO_12MHZ;
+	BCSCTL1 = CALBC1_8MHZ; // Set DCO
+	DCOCTL = CALDCO_8MHZ;
 
 	uart_init();
 
@@ -102,6 +106,9 @@ int main(void) {
 
 	spi_init();
 
+	/* Initialize RFM-module */
+//	rf12_initialize(2, RF12_433MHZ, 33);
+
 	spi_mem_init();
 
 	enc_init(mac_addr);
@@ -116,7 +123,13 @@ int main(void) {
 	debug_puthex(server_sock);
 	debug_nl();
 
-	while (1) {
+	while (true) {
+		if (rf12_recvDone() && rf12_crc == 0) {
+			if (rf12_data[0] == PACKET_BAT_LEVEL) {
+				sendSignal = true;
+			}
+		}
+
 		net_tick();
 		if (!enc_idle) {
 			enc_action();
@@ -179,7 +192,7 @@ int main(void) {
 		}
 #endif
 
-		if (enc_idle /*&& !gotChar*/) {
+		if (enc_idle /*&& !gotChar*/  && rxstate == TXRECV ) {
 			__bis_SR_register(CPUOFF | GIE);
 		}
 	}
@@ -187,11 +200,12 @@ int main(void) {
 
 void __attribute__((interrupt PORT1_VECTOR))
 PORT1_ISR(void) {
+#if 1
 	if (P1IFG & ENC_INT) {
 		enc_handle_int();
 		__bic_SR_register_on_exit(CPUOFF);
 	}
-
+#endif
 	P1IFG = 0;
 }
 
@@ -201,6 +215,10 @@ PORT2_ISR(void) {
 		sendSignal = true;
 		P2IE &= ~BIT1;
 		__bic_SR_register_on_exit(CPUOFF);
+	}
+	if (P2IFG & BIT5) {
+		__bic_SR_register_on_exit(CPUOFF);
+		rf12_interrupt();
 	}
 
 	P2IFG = 0;
