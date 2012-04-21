@@ -20,7 +20,7 @@ static uint16_t enc_remaining_packet;
 
 static bool defer = false;
 static bool gotDeferred = false;
-static uint16_t enc_xmit_size = 0;
+static volatile uint16_t enc_xmit_size = 0;
 static uint16_t deferred_id;
 static uint16_t deferred_size;
 static uint16_t checksum_location;
@@ -420,7 +420,7 @@ void enc_receive_packet(void) {
 }
 
 void enc_action(void) {
-	enc_idle = false;
+	enc_idle = true;
 
 	uint8_t reg = READ_REG(ENC_EIR);
 
