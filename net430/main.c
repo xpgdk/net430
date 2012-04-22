@@ -107,7 +107,7 @@ int main(void) {
 	spi_init();
 
 	/* Initialize RFM-module */
-//	rf12_initialize(2, RF12_433MHZ, 33);
+	rf12_initialize(2, RF12_433MHZ, 33);
 
 	spi_mem_init();
 
@@ -129,6 +129,12 @@ int main(void) {
 				sendSignal = true;
 			}
 		}
+
+		if (gotChar) {
+			gotChar = 0;
+			sendSignal = true;
+		}
+
 
 		net_tick();
 		if (!enc_idle) {
@@ -192,7 +198,7 @@ int main(void) {
 		}
 #endif
 
-		if (enc_idle /*&& !gotChar*/  && rxstate == TXRECV ) {
+		if (enc_idle && !gotChar  && rxstate == TXRECV ) {
 			__bis_SR_register(CPUOFF | GIE);
 		}
 	}
