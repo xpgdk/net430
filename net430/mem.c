@@ -21,6 +21,13 @@ uint16_t mem_read(uint16_t id, uint16_t offset, uint8_t *buf, uint16_t count) {
 }
 
 uint16_t mem_write(uint16_t id, uint16_t offset, const uint8_t *buf, uint16_t count) {
+#if 0
+	debug_puts("Writing to ");
+	debug_puthex(id+offset);
+	debug_nl();
+	print_buf(buf, count);
+	debug_nl();
+#endif
 	spi_mem_write(id+offset, buf, count);
 	return count;
 }

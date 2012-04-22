@@ -14,6 +14,19 @@ struct etherframe {
 	uint8_t payload[1500];
 };
 
+#define PTR_TYPE_UNUSED		0
+#define PTR_TYPE_PRIMARY	1
+#define PTR_TYPE_SECONDARY 	2
+/* Pointer to an IPv6 address, which either resides
+ * in main memory or secondary memory */
+struct ipv6_addr_ptr {
+	uint8_t		type;
+	union {
+		uint8_t *ptr;
+		uint16_t mem_offset;
+	} ref;
+};
+
 /* Arguments used when sending an IPv6 packet.
    This structure as a maximum references:
 	6 + 16 + 16 + 2 + 1 = 41 bytes
@@ -32,10 +45,9 @@ extern const uint8_t	unspec_addr[];
 extern uint16_t		checksum;
 
 extern uint8_t		net_state;
-extern uint16_t default_route_mac_id;
 extern const uint8_t *enc_mac_addr;
 
-#define	ADDRESS_STORE_SIZE	(16*3)
+#define	ADDRESS_STORE_SIZE				(16*3)
 #define	ADDRESS_STORE_LINK_LOCAL_OFFSET	(16*0)
 #define ADDRESS_STORE_SOLICITED_OFFSET	(16*1)
 #define	ADDRESS_STORE_MAIN_OFFSET		(16*2)

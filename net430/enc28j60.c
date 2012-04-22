@@ -454,9 +454,11 @@ int16_t net_send_start(struct etherheader *header) {
 		debug_puts("Writing packet to secondary storage\r\n");
 		retval = deferred_id;
 	} else {
+#if 0
 		debug_puts("Dest: ");
 		print_buf(header->mac_dest, 6);
-		debug_puts("\r\n");
+		debug_nl();
+#endif
 		WRITE_REG(ENC_ETXSTL, TX_START & 0xFF);
 		WRITE_REG(ENC_ETXSTH, TX_START >> 8);
 

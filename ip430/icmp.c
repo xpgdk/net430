@@ -11,7 +11,7 @@ void handle_icmp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 	uint8_t type;
 
 	dataCb(payload, 4, priv);
-	debug_puts("ICMP\r\n");
+
 	type = payload[0];
 
 	calc_checksum(payload, 4);
@@ -94,8 +94,6 @@ void handle_icmp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 		 addresses. Next, loop through the options in the payload
 		 */
 	{
-
-		debug_puts("Got router advertisment\n");
 		uint8_t *c = payload + 12;
 		while (c < payload + length - 4) {
 			if (c[0] == 3) {

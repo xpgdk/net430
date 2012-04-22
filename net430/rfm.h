@@ -28,8 +28,8 @@
 
 #define USE_HW_SPI
 
-#define SEL	BIT4
-	#define IRQ		BIT5		// to nIRQ
+#define SEL		BIT4
+#define IRQ		BIT5		// to nIRQ
 
 uint8_t rf12_config(uint8_t show);
 uint8_t rf12_recvDone(void);

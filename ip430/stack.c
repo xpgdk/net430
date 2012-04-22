@@ -90,15 +90,18 @@ bool routing_table_lookup(const uint8_t *destAddr, uint8_t *nextHopMac) {
 	bool found = false;
 	uint8_t prefixLength = 0;
 
+#if 0
 	debug_puts("routing_table_lookup: ");
 	print_addr(destAddr);
 	debug_nl();
 	debug_puts("mem ID: ");
 	debug_puthex(net_store_id + ROUTING_TABLE_OFFSET);
 	debug_nl();
+#endif
 	for (int i = 0; i < ROUTING_TABLE_COUNT; i++) {
 		mem_read(net_store_id, ROUTING_TABLE_OFFSET + (i * sizeof(struct routing_table_entry)), &entry,
 				sizeof(struct routing_table_entry));
+#if 0
 		debug_puts("Testing: ");
 		print_addr(entry.prefix);
 		debug_puts("/");
@@ -106,7 +109,7 @@ bool routing_table_lookup(const uint8_t *destAddr, uint8_t *nextHopMac) {
 		debug_puts(" -> ");
 		print_buf(entry.nextHopMac, 6);
 		debug_nl();
-
+#endif
 		if (entry.flags == 0) {
 			break;
 		}
@@ -114,8 +117,10 @@ bool routing_table_lookup(const uint8_t *destAddr, uint8_t *nextHopMac) {
 		if (memcmp(destAddr, entry.prefix, entry.prefixLength) == 0
 				&& entry.prefixLength >= prefixLength) {
 			memcpy(nextHopMac, entry.nextHopMac, 6);
+#if 0
 			debug_puts(" Match");
 			debug_nl();
+#endif
 			found = true;
 		}
 		debug_nl();
@@ -131,10 +136,13 @@ bool routing_table_add(const uint8_t *prefix, uint8_t prefixLength,
 	for (int i = 0; i < ROUTING_TABLE_COUNT; i++) {
 		mem_read(net_store_id, ROUTING_TABLE_OFFSET + (i * sizeof(struct routing_table_entry)), &entry,
 				sizeof(struct routing_table_entry));
+#if 0
 		debug_puts("Flags: ");
 		debug_puthex(entry.flags);
 		debug_nl();
+#endif
 		if (entry.flags == 0) {
+#if 0
 			debug_puts("Added entry to routing table: ");
 			print_addr(prefix);
 			debug_puts("/");
@@ -142,6 +150,7 @@ bool routing_table_add(const uint8_t *prefix, uint8_t prefixLength,
 			debug_puts(" -> ");
 			print_buf(nextHopMac, 6);
 			debug_nl();
+#endif
 			memcpy(entry.prefix, prefix, 16);
 			memcpy(entry.nextHopMac, nextHopMac, 6);
 			entry.prefixLength = prefixLength;
