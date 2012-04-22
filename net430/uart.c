@@ -29,6 +29,7 @@
 #include <legacymsp430.h>
 #include <stdlib.h>
 #include "uart.h"
+#include "config.h"
 
 /**
  * Receive Data (RXD) at P1.1
@@ -52,8 +53,12 @@ void uart_init(void)
 	P1SEL  |= RXD + TXD;
   	P1SEL2 |= RXD + TXD;
   	UCA0CTL1 |= UCSSEL_2;                     // SMCLK
-  	UCA0BR0 = 0x41;                           // 8MHz 9600
-  	UCA0BR1 = 0x3;                            // 8MHz 9600
+#if 0
+  	UCA0BR0 = 0x41;         // 8MHz 9600
+  	UCA0BR1 = 0x03;           // 8MHz 9600
+#endif
+  	UCA0BR0 = (FCPU/9600) & 0xFF;
+  	UCA0BR1 = ((FCPU/9600) >> 8) & 0xFF;
   	UCA0MCTL = UCBRS0;                        // Modulation UCBRSx = 1
   	UCA0CTL1 &= ~UCSWRST;                     // Initialize USCI state machine
   	IE2 |= UCA0RXIE;                          // Enable USCI_A0 RX interrupt

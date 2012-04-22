@@ -5,6 +5,8 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "config.h"
+#include "cpu.h"
 #include "stack.h"
 #include "spi.h"
 #include "spi_mem.h"
@@ -83,14 +85,14 @@ uint16_t requestCounter = 0;
 #define PACKET_SIGNAL		0xF3
 
 int main(void) {
-	WDTCTL = WDTPW + WDTHOLD; // Stop WDT
-	BCSCTL1 = CALBC1_8MHZ; // Set DCO
-	DCOCTL = CALDCO_8MHZ;
+	cpu_init();
 
 	uart_init();
 
 	unsigned char c;
-	uart_getc(&c);
+//	uart_getc(&c);
+
+	delayMs(500);
 
 	P2DIR &= ~BIT1;
 	P2REN |= BIT1;
