@@ -38,7 +38,6 @@ static bool doLookup;
 
 /* We store three addresses in the address store (42 bytes)*/
 //uint16_t address_store;
-
 static uint8_t const *address_lookup = NULL;
 static int16_t lookup_id;
 static uint16_t net_store_id;
@@ -78,11 +77,11 @@ void construct_solicited_mcast_addr(uint8_t *solicited_mcast,
 bool has_ipv6_addr(const uint8_t *ipaddr);
 
 void net_get_address(uint8_t offset, uint8_t *target) {
-	mem_read(net_store_id, ADDR_STORE_OFFSET+offset, target, 16);
+	mem_read(net_store_id, ADDR_STORE_OFFSET + offset, target, 16);
 }
 
 void net_set_address(uint8_t offset, uint8_t *source) {
-	mem_write(net_store_id, ADDR_STORE_OFFSET+offset, source, 16);
+	mem_write(net_store_id, ADDR_STORE_OFFSET + offset, source, 16);
 }
 
 bool routing_table_lookup(const uint8_t *destAddr, uint8_t *nextHopMac) {
@@ -99,8 +98,9 @@ bool routing_table_lookup(const uint8_t *destAddr, uint8_t *nextHopMac) {
 	debug_nl();
 #endif
 	for (int i = 0; i < ROUTING_TABLE_COUNT; i++) {
-		mem_read(net_store_id, ROUTING_TABLE_OFFSET + (i * sizeof(struct routing_table_entry)), &entry,
-				sizeof(struct routing_table_entry));
+		mem_read(net_store_id,
+				ROUTING_TABLE_OFFSET + (i * sizeof(struct routing_table_entry)),
+				&entry, sizeof(struct routing_table_entry));
 #if 0
 		debug_puts("Testing: ");
 		print_addr(entry.prefix);
@@ -134,8 +134,9 @@ bool routing_table_add(const uint8_t *prefix, uint8_t prefixLength,
 	struct routing_table_entry entry;
 
 	for (int i = 0; i < ROUTING_TABLE_COUNT; i++) {
-		mem_read(net_store_id, ROUTING_TABLE_OFFSET + (i * sizeof(struct routing_table_entry)), &entry,
-				sizeof(struct routing_table_entry));
+		mem_read(net_store_id,
+				ROUTING_TABLE_OFFSET + (i * sizeof(struct routing_table_entry)),
+				&entry, sizeof(struct routing_table_entry));
 #if 0
 		debug_puts("Flags: ");
 		debug_puthex(entry.flags);
@@ -155,8 +156,11 @@ bool routing_table_add(const uint8_t *prefix, uint8_t prefixLength,
 			memcpy(entry.nextHopMac, nextHopMac, 6);
 			entry.prefixLength = prefixLength;
 			entry.flags = ROUTING_TABLE_FLAG_USED;
-			mem_write(net_store_id, ROUTING_TABLE_OFFSET + (i * sizeof(struct routing_table_entry)),
-					&entry, sizeof(struct routing_table_entry));
+			mem_write(
+					net_store_id,
+					ROUTING_TABLE_OFFSET
+							+ (i * sizeof(struct routing_table_entry)), &entry,
+					sizeof(struct routing_table_entry));
 			return true;
 		}
 	}
@@ -188,10 +192,13 @@ void register_mac_addr(const uint8_t *mac, const uint8_t *addr) {
 		return;
 	}
 	//mem_read(addr_map_id, addt_map_next*sizeof(struct addr_map_entry), &e, count);
-	mem_write(net_store_id, ADDR_MAP_OFFSET + (addr_map_next * sizeof(struct addr_map_entry)), mac,
-			6);
-	mem_write(net_store_id, ADDR_MAP_OFFSET + (addr_map_next * sizeof(struct addr_map_entry)) + 6,
-			addr, 16);
+	mem_write(net_store_id,
+			ADDR_MAP_OFFSET + (addr_map_next * sizeof(struct addr_map_entry)),
+			mac, 6);
+	mem_write(
+			net_store_id,
+			ADDR_MAP_OFFSET + (addr_map_next * sizeof(struct addr_map_entry))
+					+ 6, addr, 16);
 	/*memcpy(addr_map[addr_map_next].mac, mac, 6);
 	 memcpy(addr_map[addr_map_next].addr, addr, 16);*/
 
@@ -217,10 +224,13 @@ void register_mac_addr(const uint8_t *mac, const uint8_t *addr) {
 bool find_mac_addr(uint8_t *mac, const uint8_t *addr) {
 	for (int i = 0; i < ADDR_MAP_COUNT; i++) {
 		uint8_t addr_map[16];
-		mem_read(net_store_id, ADDR_MAP_OFFSET + (i * sizeof(struct addr_map_entry)) + 6, addr_map,
-				16);
+		mem_read(net_store_id,
+				ADDR_MAP_OFFSET + (i * sizeof(struct addr_map_entry)) + 6,
+				addr_map, 16);
 		if (memcmp(addr, addr_map, 16) == 0) {
-			mem_read(net_store_id, ADDR_MAP_OFFSET + (i * sizeof(struct addr_map_entry)), mac, 6);
+			mem_read(net_store_id,
+					ADDR_MAP_OFFSET + (i * sizeof(struct addr_map_entry)), mac,
+					6);
 			return true;
 		}
 	}
@@ -230,8 +240,9 @@ bool find_mac_addr(uint8_t *mac, const uint8_t *addr) {
 bool has_ipv6_addr(const uint8_t *ipaddr) {
 	for (int i = 0; i < ADDR_MAP_COUNT; i++) {
 		uint8_t addr_map[16];
-		mem_read(net_store_id, ADDR_MAP_OFFSET + (i * sizeof(struct addr_map_entry)) + 6, addr_map,
-				16);
+		mem_read(net_store_id,
+				ADDR_MAP_OFFSET + (i * sizeof(struct addr_map_entry)) + 6,
+				addr_map, 16);
 		if (memcmp(ipaddr, addr_map, 16) == 0) {
 			return true;
 		}
@@ -482,19 +493,7 @@ void net_tick(void) {
 			send_neighbor_solicitation(ether_bcast, addr, address_lookup,
 					address_lookup);
 		} else {
-			/*mem_read(lookup_addr_id, 0, buf, 1);
-			 if (buf[0] != 0x0) {
-			 uint8_t mac[6];
-			 debug_puts("Sending to default\r\n");
-			 mem_read(default_route_mac_id, 0, mac, 6);
-			 print_buf(mac, 6);
-			 net_send_deferred(lookup_id, mac);
-			 debug_puts("Done\r\n");
-			 buf[0] = 0x00;
-			 mem_write(lookup_addr_id, 0, buf, 1);
-			 } else*/{
-				net_drop_deferred(lookup_id);
-			}
+			net_drop_deferred(lookup_id);
 			net_state = STATE_IDLE;
 		}
 		break;
