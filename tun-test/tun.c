@@ -179,6 +179,7 @@ net_send_start(struct etherheader *header) {
 	}
 
 	xmit_offset = sizeof(struct etherheader);
+	checksum_location = 0;
 
 	defer = true;
 
@@ -219,12 +220,39 @@ net_send_dummy_checksum(void) {
 void
 net_send_replace_checksum(uint16_t checksum) {
 	uint8_t buf[2];
+
+	if (checksum_location == 0) {
+		return;
+	}
+
 	buf[0] = checksum >> 8;
 	buf[1] = checksum & 0xFF;
 	if (defer) {
 		mem_write(deferred_id, checksum_location, buf, 2);
 	} else {
 		memcpy(xmit_buffer+checksum_location, buf, 2);
+	}
+}
+
+uint16_t
+net_get_length(void) {
+	return xmit_offset;
+}
+
+void
+net_send_at_offset(uint16_t offset, uint16_t val) {
+	debug_puts("net_send_at_offset: ");
+	debug_puthex(offset);
+	debug_puts(", ");
+	debug_puthex(val);
+	debug_nl();
+	uint8_t buf[2];
+	buf[0] = val >> 8;
+	buf[1] = val & 0xFF;
+	if (defer) {
+		mem_write(deferred_id, offset, buf, 2);
+	} else {
+		memcpy(xmit_buffer+offset, buf, 2);
 	}
 }
 

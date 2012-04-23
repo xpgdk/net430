@@ -7,7 +7,7 @@ void handle_udp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 }
 
 void net_udp_send(struct udp_packet_header *hdr, uint8_t *data, uint16_t count) {
-	hdr->ipv6.payload_length = count + 8;
+	//hdr->ipv6.payload_length = count + 8;
 	hdr->ipv6.protocol = PROTO_UDP;
 	net_start_ipv6_packet(&hdr->ipv6);
 
@@ -23,8 +23,8 @@ void net_udp_send(struct udp_packet_header *hdr, uint8_t *data, uint16_t count) 
 	net_send_data(buf, 2);
 	calc_checksum(buf, 2);
 
-	buf[0] = hdr->ipv6.payload_length >> 8;
-	buf[1] = hdr->ipv6.payload_length & 0xFF;
+//	buf[0] = hdr->ipv6.payload_length >> 8;
+//	buf[1] = hdr->ipv6.payload_length & 0xFF;
 	net_send_data(buf, 2);
 	calc_checksum(buf, 2);
 

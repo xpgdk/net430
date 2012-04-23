@@ -388,7 +388,9 @@ void net_start_ipv6_packet(struct ipv6_packet_arg *arg) {
 	 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 	 */
 
-	checksum = arg->payload_length + arg->protocol;
+	uint8_t buf[4];
+
+	checksum = /*arg->payload_length +*/ arg->protocol;
 
 	struct etherheader header;
 
@@ -432,10 +434,9 @@ void net_start_ipv6_packet(struct ipv6_packet_arg *arg) {
 	/* Version=6, traffic class=0, and flow label=0 part of the header */
 	net_send_data(ipv6_header, 4);
 
-	uint8_t buf[4];
 
-	buf[0] = (arg->payload_length >> 8) & 0xFF;
-	buf[1] = arg->payload_length & 0xFF;
+	buf[0] = /*(arg->payload_length >> 8) & 0xFF*/ 0x00;
+	buf[1] = /*arg->payload_length & 0xFF*/ 0x00;
 	buf[2] = arg->protocol;
 	buf[3] = 255;
 	net_send_data(buf, 4);
@@ -448,6 +449,13 @@ void net_start_ipv6_packet(struct ipv6_packet_arg *arg) {
 }
 
 void net_end_ipv6_packet() {
+	uint16_t length = net_get_length()-(SIZE_IPV6_HEADER+SIZE_ETHERNET_HEADER);
+	uint8_t buf[2];
+	buf[0] = (length >> 8) & 0xFF;
+	buf[1] = length & 0xFF;
+	calc_checksum(buf, 2);
+	net_send_replace_checksum(~checksum);
+	net_send_at_offset(SIZE_ETHERNET_HEADER+4, length);
 	net_send_end();
 
 	if (address_lookup != NULL) {

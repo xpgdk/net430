@@ -128,7 +128,10 @@ int main(void) {
 	while (true) {
 		if (rf12_recvDone() && rf12_crc == 0) {
 			if (rf12_data[0] == PACKET_BAT_LEVEL) {
-				sendSignal = true;
+				debug_puts("Got RF12 BAT LEVEL: ");
+				debug_puts(rf12_data+1);
+				debug_nl();
+				//sendSignal = true;
 			}
 		}
 

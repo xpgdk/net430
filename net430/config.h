@@ -9,9 +9,11 @@
 #define CONFIG_H_
 
 #define CPU_FREQ 	8
+#define SPI_SPEED 1000000 // 1MHz
 
 /* Duration of a single CPU cycle */
 #define FCPU (CPU_FREQ*1000000)
 #define CYCLE_DURATION (1000000000 / FCPU) /* nanoseconds */
+#define SPI_DIV (FCPU/SPI_SPEED)
 
 #endif /* CONFIG_H_ */

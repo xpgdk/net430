@@ -35,7 +35,7 @@ struct ipv6_packet_arg {
 	const uint8_t 	*dst_mac_addr; /* May be NULL */
 	const uint8_t 	*dst_ipv6_addr;
 	const uint8_t 	*src_ipv6_addr; /* May be NULL */
-	uint16_t	payload_length;
+//	uint16_t	payload_length;
 	uint8_t		protocol;
 };
 
@@ -65,6 +65,8 @@ extern const uint8_t *enc_mac_addr;
 #define ICMP_TYPE_ECHO_REQUEST		128
 #define ICMP_TYPE_ECHO_REPLY		129
 
+#define SIZE_ETHERNET_HEADER	sizeof(struct etherheader)
+#define SIZE_IPV6_HEADER		40
 #define SIZE_ICMP_HEADER		4
 #define SIZE_TCP_HEADER			20
 
@@ -113,11 +115,13 @@ void calc_checksum(const uint8_t *buf, uint16_t count);
 /* Implemented by low-level driver */
 int16_t net_send_start(struct etherheader *header);
 void net_send_data(const uint8_t *buf, uint16_t count);
-void net_send_end();
+void net_send_end(void);
 void net_send_deferred(int16_t id, uint8_t const *dstMac);
 void net_drop_deferred(int16_t id);
 void net_send_dummy_checksum(void);
 void net_send_replace_checksum(uint16_t checksum);
+void net_send_at_offset(uint16_t offset, uint16_t length);
+uint16_t net_get_length(void);
 
 /* Send IPv6 header and perform checksum calculation according to the
    pseudo header used by UDP, TCP, and ICMP */

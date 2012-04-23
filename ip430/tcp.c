@@ -30,7 +30,7 @@ void tcp_send_packet(struct tcb *tcb, uint16_t flags, uint32_t count) {
 	arg.dst_mac_addr = null_mac;
 	arg.dst_ipv6_addr = tcb->remote_addr;
 	arg.src_ipv6_addr = tcb->local_addr;
-	arg.payload_length = SIZE_TCP_HEADER + count;
+	//arg.payload_length = SIZE_TCP_HEADER + count;
 	arg.protocol = PROTO_TCP;
 
 	net_start_ipv6_packet(&arg);

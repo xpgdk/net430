@@ -81,7 +81,7 @@ void handle_icmp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 			arg.dst_mac_addr = null_mac;
 			arg.dst_ipv6_addr = sourceAddr;
 			arg.src_ipv6_addr = destIPAddr;
-			arg.payload_length = SIZE_ICMP_HEADER + length;
+			//arg.payload_length = SIZE_ICMP_HEADER + length;
 			arg.protocol = PROTO_ICMP;
 
 			net_start_ipv6_packet(&arg);
@@ -132,20 +132,16 @@ void net_send_icmp(uint8_t type, uint8_t code, uint8_t *body,
 	 |                                                               |
 	 */
 
-	uint8_t buf[4];
+	uint8_t buf[2];
 	buf[0] = type;
 	buf[1] = code;
-	buf[2] = 0;
-	buf[3] = 0;
-	calc_checksum(buf, 4);
-
 	net_send_data(buf, 2);
+	calc_checksum(buf, 2);
+
 	net_send_dummy_checksum();
 
 	net_send_data(body, body_length);
 	calc_checksum(body, body_length);
-
-	net_send_replace_checksum(~checksum);
 }
 
 void send_neighbor_solicitation(const uint8_t *dst_mac, const uint8_t *src_addr,
@@ -161,7 +157,7 @@ void send_neighbor_solicitation(const uint8_t *dst_mac, const uint8_t *src_addr,
 	arg.dst_mac_addr = dst_mac;
 	arg.dst_ipv6_addr = dst_addr;
 	arg.src_ipv6_addr = src_addr;
-	arg.payload_length = payload_length + SIZE_ICMP_HEADER;
+	//arg.payload_length = payload_length + SIZE_ICMP_HEADER;
 	arg.protocol = PROTO_ICMP;
 
 #if 1
@@ -205,7 +201,7 @@ void send_neighbor_advertisment(const uint8_t *dst_mac, const uint8_t *src_addr,
 	 +-+-+-+-+-+-+-+-+-+-+-+-
 	 */
 	/* Length here does not include ICMP header */
-	uint16_t payload_length = 20 + 8; /* Advertisment + target-link layer option*/
+	//uint16_t payload_length = 20 + 8; /* Advertisment + target-link layer option*/
 	uint8_t buf[20 + 8];
 
 	struct ipv6_packet_arg arg;
@@ -213,7 +209,7 @@ void send_neighbor_advertisment(const uint8_t *dst_mac, const uint8_t *src_addr,
 	arg.dst_mac_addr = dst_mac;
 	arg.dst_ipv6_addr = dst_addr;
 	arg.src_ipv6_addr = src_addr;
-	arg.payload_length = payload_length + SIZE_ICMP_HEADER;
+	//arg.payload_length = payload_length + SIZE_ICMP_HEADER;
 	arg.protocol = PROTO_ICMP;
 
 	net_start_ipv6_packet(&arg);
@@ -238,7 +234,7 @@ void send_router_solicitation(const uint8_t *src_addr, const uint8_t *dst_addr) 
 	arg.dst_mac_addr = ether_bcast;
 	arg.dst_ipv6_addr = dst_addr;
 	arg.src_ipv6_addr = src_addr;
-	arg.payload_length = payload_length + SIZE_ICMP_HEADER;
+	//arg.payload_length = payload_length + SIZE_ICMP_HEADER;
 	arg.protocol = PROTO_ICMP;
 
 	net_start_ipv6_packet(&arg);

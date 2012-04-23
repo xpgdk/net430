@@ -445,6 +445,7 @@ int16_t net_send_start(struct etherheader *header) {
 	}
 
 	enc_xmit_size = 0;
+	checksum_location = 0;
 	defer = doDefer;
 	if (doDefer) {
 		if (gotDeferred) {
@@ -577,6 +578,16 @@ void net_send_dummy_checksum(void) {
 
 void net_send_replace_checksum(uint16_t checksum) {
 	uint8_t buf[2];
+	if( checksum_location == 0) {
+		return;
+	}
+
+	debug_puts("Writing checksum ");
+	debug_puthex(checksum);
+	debug_puts(" at ");
+	debug_puthex(checksum_location);
+	debug_nl();
+
 	buf[0] = checksum >> 8;
 	buf[1] = checksum & 0xFF;
 	if (defer) {
@@ -588,7 +599,43 @@ void net_send_replace_checksum(uint16_t checksum) {
 		WRITE_REG(ENC_EWRPTL, checksum_location & 0xFF);
 		WRITE_REG(ENC_EWRPTH, checksum_location >> 8);
 		enc_write_packet_data(buf, 2);
+		debug_puts("Restore pos at ");
+		debug_puthex(cur[0] | (cur[1] << 8));
+		debug_nl();
 		WRITE_REG(ENC_EWRPTL, cur[0]);
 		WRITE_REG(ENC_EWRPTH, cur[1]);
 	}
+}
+
+void net_send_at_offset(uint16_t offset, uint16_t length) {
+	uint8_t buf[2];
+	offset += TX_START+1;
+	debug_puts("net_send_at_offset: ");
+	debug_puthex(offset);
+	debug_puts(", ");
+	debug_puthex(length);
+	debug_nl();
+	buf[0] = length >> 8;
+	buf[1] = length & 0xFF;
+	if (defer) {
+		debug_puts("Deferred");
+		debug_nl();
+		mem_write(deferred_id, offset, buf, 2);
+	} else {
+		uint8_t cur[2];
+		cur[0] = READ_REG(ENC_EWRPTL);
+		cur[1] = READ_REG(ENC_EWRPTH);
+		WRITE_REG(ENC_EWRPTL, offset & 0xFF);
+		WRITE_REG(ENC_EWRPTH, (offset >> 8) & 0xFF);
+		enc_write_packet_data(buf, 2);
+		debug_puts("Restore pos at ");
+		debug_puthex(cur[0] | (cur[1] << 8));
+		debug_nl();
+		WRITE_REG(ENC_EWRPTL, cur[0]);
+		WRITE_REG(ENC_EWRPTH, cur[1]);
+	}
+}
+
+uint16_t net_get_length(void) {
+	return enc_xmit_size-1;
 }
