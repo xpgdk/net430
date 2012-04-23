@@ -48,7 +48,7 @@ struct tcb {
 /* Internal functions */
 void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr, uint16_t length, DATA_CB dataCb, void *priv);
 void tcp_init(void);
-void tcp_send_packet(struct tcb *tcb, uint16_t flags, uint32_t count);
+void tcp_send_packet(struct tcb *tcb, uint16_t flags);
 void net_tcp_end_packet(struct tcb *tcb);
 
 /* TCP API */
@@ -59,7 +59,7 @@ void tcp_listen(int socket, uint16_t port);
 void tcp_send(int socket, const uint8_t *buf, uint16_t count);
 void tcp_close(int socket);
 
-void tcp_send_start(int socket, uint16_t count);
+void tcp_send_start(int socket);
 void tcp_send_data(const uint8_t *buf, uint16_t count);
 void tcp_send_end();
 

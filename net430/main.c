@@ -70,7 +70,9 @@ const static uint8_t dst[] = { 0x26, 0x07, 0xf2, 0x98, 0x00, 0x2, 0x01, 0x20,
 const static char httpResponseHeader[] =
 		"HTTP/1.1 200 OK\r\n"
 				"Server: net430\r\n"
-				"Content-Type: text/html\r\n\r\n<html><head><meta http-equiv=\"Refresh\" content=\"5\"></head><body>Usage counter</body></html>";
+				"Content-Type: text/html\r\n\r\n<html><head><meta http-equiv=\"Refresh\" content=\"5\"></head><body>Usage counter:";
+const static char httpResponseHeaderPart2[] =
+		"</body></html>";
 #define RESPONSE_HEADER_SIZE (sizeof(httpResponseHeader)-1)
 
 const static char httpRequest[] = "GET /snail-notify.php HTTP/1.1\r\n"
@@ -148,15 +150,20 @@ int main(void) {
 
 		if (gotData) {
 			gotData = false;
-
-			uint8_t buf[5];
+			requestCounter++;
+			uint8_t buf[5] = {' ', ' ', ' ', ' ', ' '};
 			uint16_t contentlength;
 
 			contentlength = 17;
 
-			itoa(contentlength, buf, 10);
+			itoa(requestCounter, buf, 10);
 
-			tcp_send(server_sock, httpResponseHeader, RESPONSE_HEADER_SIZE);
+			tcp_send_start(server_sock);
+			tcp_send_data(httpResponseHeader, sizeof(httpResponseHeader)-1);
+			tcp_send_data(buf, 4);
+			tcp_send_data(httpResponseHeaderPart2, sizeof(httpResponseHeaderPart2)-1);
+			tcp_send_end(server_sock);
+			//tcp_send(server_sock, httpResponseHeader, RESPONSE_HEADER_SIZE);
 #if 0
 			tcp_send_start(server_sock,
 					RESPONSE_HEADER_SIZE + 4 + 17);

@@ -23,7 +23,7 @@ static uint8_t tcb_count;
  * explictly (i.e. not piggy bagged in a data packet).
  */
 
-void tcp_send_packet(struct tcb *tcb, uint16_t flags, uint32_t count) {
+void tcp_send_packet(struct tcb *tcb, uint16_t flags) {
 	struct ipv6_packet_arg arg;
 	uint8_t buf[4];
 
@@ -78,7 +78,7 @@ void net_tcp_end_packet(struct tcb *tcb) {
 		tcb->tcp_snd_nxt += length;
 	}
 
-	net_send_replace_checksum(~checksum);
+	//net_send_replace_checksum(~checksum);
 	net_end_ipv6_packet();
 }
 
@@ -222,7 +222,7 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 		if ((flags & TCP_SYN) && data_length == 0) {
 			ttcb.tcp_rcv_nxt = seqNo + 1;
 		}
-		tcp_send_packet(&ttcb, rflags, 0);
+		tcp_send_packet(&ttcb, rflags);
 		net_tcp_end_packet(&ttcb);
 
 		return;
@@ -237,7 +237,7 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 		}
 		if (flags & TCP_ACK) {
 			tcb.tcp_snd_nxt = ackNo;
-			tcp_send_packet(&tcb, TCP_RST, 0);
+			tcp_send_packet(&tcb, TCP_RST);
 			net_tcp_end_packet(&tcb);
 			/* Update TCB */
 			mem_write(tcb_id, tcb_no * sizeof(struct tcb), &tcb,
@@ -262,7 +262,7 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 			tcb.tcp_snd_una = tcb.tcp_iss;
 			tcb.tcp_snd_nxt = tcb.tcp_iss + 1;
 
-			tcp_send_packet(&tcb, TCP_SYN | TCP_ACK, 0);
+			tcp_send_packet(&tcb, TCP_SYN | TCP_ACK);
 			net_tcp_end_packet(&tcb);
 			debug_puts("TCP Send");
 			debug_nl();
@@ -295,7 +295,7 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 			tcb.tcp_irs = seqNo;
 			tcb.tcp_rcv_wnd = RECV_WINDOW;
 			tcb.tcp_rcv_nxt = seqNo + 1;
-			tcp_send_packet(&tcb, TCP_ACK, 0);
+			tcp_send_packet(&tcb, TCP_ACK);
 			net_tcp_end_packet(&tcb);
 			tcb.tcp_snd_nxt--;
 			/* Update TCB */
@@ -315,7 +315,7 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 	case TCP_STATE_TIME_WAIT:
 		if ((flags & TCP_ACK) && (flags & TCP_FIN)) {
 			tcb.tcp_rcv_nxt = seqNo + 1;
-			tcp_send_packet(&tcb, TCP_ACK, 0);
+			tcp_send_packet(&tcb, TCP_ACK);
 			net_tcp_end_packet(&tcb);
 			tcb.tcp_state = TCP_STATE_CLOSED;
 			/* Update TCB */
@@ -354,11 +354,11 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 	case TCP_STATE_ESTABLISHED:
 		if (flags & TCP_FIN) {
 			tcb.tcp_rcv_nxt = seqNo + 1;
-			tcp_send_packet(&tcb, TCP_ACK, 0);
+			tcp_send_packet(&tcb, TCP_ACK);
 			net_tcp_end_packet(&tcb);
 			//tcb.tcp_snd_nxt--;
 
-			tcp_send_packet(&tcb, TCP_ACK | TCP_FIN, 0);
+			tcp_send_packet(&tcb, TCP_ACK | TCP_FIN);
 			net_tcp_end_packet(&tcb);
 
 			tcb.tcp_state = TCP_STATE_LAST_ACK;
@@ -434,7 +434,7 @@ void tcp_send(int socket, const uint8_t *buf, uint16_t count) {
 	mem_read(tcb_id, socket * sizeof(struct tcb), (uint8_t*) &tcb,
 			sizeof(struct tcb));
 
-	tcp_send_packet(&tcb, TCP_ACK, count);
+	tcp_send_packet(&tcb, TCP_ACK);
 
 	net_send_data(buf, count);
 	calc_checksum(buf, count);
@@ -444,12 +444,12 @@ void tcp_send(int socket, const uint8_t *buf, uint16_t count) {
 			sizeof(struct tcb));
 }
 
-void tcp_send_start(int socket, uint16_t count) {
+void tcp_send_start(int socket) {
 	struct tcb tcb;
 	mem_read(tcb_id, socket * sizeof(struct tcb), (uint8_t*) &tcb,
 			sizeof(struct tcb));
 
-	tcp_send_packet(&tcb, TCP_ACK, count);
+	tcp_send_packet(&tcb, TCP_ACK);
 	mem_write(tcb_id, socket * sizeof(struct tcb), (uint8_t*) &tcb,
 			sizeof(struct tcb));
 }
@@ -475,7 +475,7 @@ void tcp_close(int socket) {
 	mem_read(tcb_id, socket * sizeof(struct tcb), (uint8_t*) &tcb,
 			sizeof(struct tcb));
 
-	tcp_send_packet(&tcb, TCP_FIN|TCP_ACK, 0);
+	tcp_send_packet(&tcb, TCP_FIN|TCP_ACK);
 	net_tcp_end_packet(&tcb);
 	tcb.tcp_state = TCP_STATE_FIN_WAIT_2;
 	mem_write(tcb_id, socket * sizeof(struct tcb), (uint8_t*) &tcb,
@@ -501,7 +501,7 @@ void tcp_connect(int socket, uint8_t *local_addr, uint8_t *remote_addr, uint16_t
 	tcb.tcp_snd_una = tcb.tcp_iss;
 	tcb.tcp_snd_nxt = tcb.tcp_iss;
 
-	tcp_send_packet(&tcb, TCP_SYN, 0);
+	tcp_send_packet(&tcb, TCP_SYN);
 	net_tcp_end_packet(&tcb);
 	tcb.tcp_snd_nxt++;
 	mem_write(tcb_id, socket * sizeof(struct tcb), (uint8_t*) &tcb,
