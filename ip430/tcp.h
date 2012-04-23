@@ -49,7 +49,7 @@ struct tcb {
 void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr, uint16_t length, DATA_CB dataCb, void *priv);
 void tcp_init(void);
 void tcp_send_packet(struct tcb *tcb, uint16_t flags, uint32_t count);
-void net_tcp_end_packet(void);
+void net_tcp_end_packet(struct tcb *tcb);
 
 /* TCP API */
 int tcp_socket(tcp_callback callback);

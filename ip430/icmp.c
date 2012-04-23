@@ -209,7 +209,6 @@ void send_neighbor_advertisment(const uint8_t *dst_mac, const uint8_t *src_addr,
 	arg.dst_mac_addr = dst_mac;
 	arg.dst_ipv6_addr = dst_addr;
 	arg.src_ipv6_addr = src_addr;
-	//arg.payload_length = payload_length + SIZE_ICMP_HEADER;
 	arg.protocol = PROTO_ICMP;
 
 	net_start_ipv6_packet(&arg);
@@ -234,7 +233,6 @@ void send_router_solicitation(const uint8_t *src_addr, const uint8_t *dst_addr) 
 	arg.dst_mac_addr = ether_bcast;
 	arg.dst_ipv6_addr = dst_addr;
 	arg.src_ipv6_addr = src_addr;
-	//arg.payload_length = payload_length + SIZE_ICMP_HEADER;
 	arg.protocol = PROTO_ICMP;
 
 	net_start_ipv6_packet(&arg);

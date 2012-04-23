@@ -637,5 +637,6 @@ void net_send_at_offset(uint16_t offset, uint16_t length) {
 }
 
 uint16_t net_get_length(void) {
+	/* First byte is a control byte, which is not data */
 	return enc_xmit_size-1;
 }
