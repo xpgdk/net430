@@ -20,9 +20,7 @@ void handle_icmp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 
 	calc_checksum(payload, length - 4);
 
-
 	if (checksum != 0xFFFF) {
-		//printf("Invalid checksum\n");
 		return;
 	}
 
@@ -35,26 +33,14 @@ void handle_icmp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 		/* First 4 bytes are 'reserved', we ignore them.
 		 Next 16 bytes are the target address
 		 */
-		//if( memcmp(payload+4, addr_link, 16) == 0) {
-		/* This solicitation is for us, send an advertisment back */
-		//printf("Got solicication for ");
-		print_addr(payload + 4);
-
 		if (length > 20) {
-			//printf("Option present\n");
 			if (payload[20] == 0x01) {
 				/* We now got the link-layer address and IPv6 address of someone, store it */
 				register_mac_addr(payload + 22, sourceAddr);
-				//printf("Option is Source-Link\n");
-				//printf("Source layer address: ");
-				print_buf(payload + 22, 6);
-				//send_neighbor_advertisment(payload+22, addr_link, sourceAddr, addr_link);
 				send_neighbor_advertisment(payload + 22, payload + 4,
 						sourceAddr, payload + 4);
 			}
 		}
-
-		//}
 		break;
 	case ICMP_TYPE_NEIGHBOR_ADVERTISMENT:
 		/* We ignore first 4 bytes */
@@ -63,7 +49,6 @@ void handle_icmp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 			uint8_t addr[16];
 			net_get_address(ADDRESS_STORE_LINK_LOCAL_OFFSET, addr);
 			if (memcmp(payload + 4, addr, 16) == 0) {
-				//printf("Duplicate address detected\n");
 				net_state = STATE_INVALID;
 				return;
 			}
@@ -76,7 +61,6 @@ void handle_icmp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 		if (length >= 8) {
 			uint16_t id = (payload[0] << 8) | payload[1];
 			uint16_t seqNo = (payload[2] << 8) | payload[3];
-			//printf("Echo request, id: %X, seqNo: %X\n", id, seqNo);
 			struct ipv6_packet_arg arg;
 			arg.dst_mac_addr = null_mac;
 			arg.dst_ipv6_addr = sourceAddr;
@@ -99,7 +83,6 @@ void handle_icmp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 			if (c[0] == 3) {
 				uint8_t prefixLength = c[2];
 				/* Prefix starts at offset 16 */
-				print_addr(c + 16);
 				uint8_t buf[16];
 				net_get_address(ADDRESS_STORE_MAIN_OFFSET, buf);
 				if (buf[0] == 0x00) {

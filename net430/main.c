@@ -142,7 +142,6 @@ int main(void) {
 			sendSignal = true;
 		}
 
-
 		net_tick();
 		if (!enc_idle) {
 			enc_action();
@@ -163,15 +162,6 @@ int main(void) {
 			tcp_send_data(buf, 4);
 			tcp_send_data(httpResponseHeaderPart2, sizeof(httpResponseHeaderPart2)-1);
 			tcp_send_end(server_sock);
-			//tcp_send(server_sock, httpResponseHeader, RESPONSE_HEADER_SIZE);
-#if 0
-			tcp_send_start(server_sock,
-					RESPONSE_HEADER_SIZE + 4 + 17);
-			tcp_send_data(httpResponseHeader, RESPONSE_HEADER_SIZE);
-			tcp_send_data("\r\n\r\n", 4);
-			tcp_send_data("Request Counter: ", 17);
-			tcp_send_end();
-#endif
 
 			tcp_close(server_sock);
 			gotData = false;
@@ -187,7 +177,6 @@ int main(void) {
 			tcp_send(client_socket, httpRequest, sizeof(httpRequest) - 1);
 			tcp_close(client_socket);
 		}
-#if 1
 		if (sendSignal) {
 			uint8_t addr[16];
 			debug_puts("Button pressed");
@@ -195,20 +184,7 @@ int main(void) {
 			net_get_address(ADDRESS_STORE_MAIN_OFFSET, addr);
 			tcp_connect(client_socket, addr, dst, 80);
 			sendSignal = false;
-			/*
-			 unsigned char c = gotChar;
-			 gotChar = 0;
-			 uint8_t addr[16];
-			 net_get_address(ADDRESS_STORE_MAIN_OFFSET, addr);
-			 struct udp_packet_header udpHeader;
-			 udpHeader.ipv6.dst_ipv6_addr = dst;
-			 udpHeader.ipv6.dst_mac_addr = null_mac;
-			 udpHeader.ipv6.src_ipv6_addr = addr;
-			 udpHeader.sourcePort = 80;
-			 udpHeader.destPort = 80;
-			 net_udp_send(&udpHeader, "Test", 4);*/
 		}
-#endif
 
 		if (enc_idle && !gotChar  && rxstate == TXRECV ) {
 			__bis_SR_register(CPUOFF | GIE);
@@ -238,6 +214,5 @@ PORT2_ISR(void) {
 		__bic_SR_register_on_exit(CPUOFF);
 		rf12_interrupt();
 	}
-
 	P2IFG = 0;
 }

@@ -288,10 +288,8 @@ void enc_init(const uint8_t *mac) {
 		reg = READ_REG(ENC_ESTAT);
 		debug_puthex(reg);
 		debug_nl();
-		__delay_cycles(5000);
+		delayMs(200);
 	} while ((reg & ENC_ESTAT_CLKRDY) == 0);
-
-	__delay_cycles(50000);
 
 	debug_puts("Silicon Revision: ");
 	debug_puthex(READ_REG(ENC_EREVID));
@@ -307,25 +305,25 @@ void enc_init(const uint8_t *mac) {
 	uint16_t phyreg = enc_phy_read(ENC_PHSTAT2);
 	debug_puts("PHSTAT2: ");
 	debug_puthex(phyreg);
-	debug_puts("\r\n");
+	debug_nl();
 	phyreg &= ~ENC_PHSTAT2_DPXSTAT;
 	debug_puthex(phyreg);
-	debug_puts("\r\n");
+	debug_nl();
 	enc_phy_write(ENC_PHSTAT2, phyreg);
 
 	phyreg = enc_phy_read(ENC_PHSTAT2);
 	debug_puts("PHSTAT2: ");
 	debug_puthex(phyreg);
-	debug_puts("\r\n");
+	debug_nl();
 
 	phyreg = enc_phy_read(ENC_PHCON1);
 	debug_puts("PHCON1: ");
 	debug_puthex(phyreg);
-	debug_puts("\r\n");
+	debug_nl();
 	phyreg &= ~ENC_PHCON_PDPXMD;
 	debug_puts("PHCON1: ");
 	debug_puthex(phyreg);
-	debug_puts("\r\n");
+	debug_nl();
 	enc_phy_write(ENC_PHCON1, phyreg);
 
 #if 0
@@ -582,12 +580,6 @@ void net_send_replace_checksum(uint16_t checksum) {
 		return;
 	}
 
-	debug_puts("Writing checksum ");
-	debug_puthex(checksum);
-	debug_puts(" at ");
-	debug_puthex(checksum_location);
-	debug_nl();
-
 	buf[0] = checksum >> 8;
 	buf[1] = checksum & 0xFF;
 	if (defer) {
@@ -599,9 +591,6 @@ void net_send_replace_checksum(uint16_t checksum) {
 		WRITE_REG(ENC_EWRPTL, checksum_location & 0xFF);
 		WRITE_REG(ENC_EWRPTH, checksum_location >> 8);
 		enc_write_packet_data(buf, 2);
-		debug_puts("Restore pos at ");
-		debug_puthex(cur[0] | (cur[1] << 8));
-		debug_nl();
 		WRITE_REG(ENC_EWRPTL, cur[0]);
 		WRITE_REG(ENC_EWRPTH, cur[1]);
 	}
@@ -610,16 +599,9 @@ void net_send_replace_checksum(uint16_t checksum) {
 void net_send_at_offset(uint16_t offset, uint16_t length) {
 	uint8_t buf[2];
 	offset += TX_START+1;
-	debug_puts("net_send_at_offset: ");
-	debug_puthex(offset);
-	debug_puts(", ");
-	debug_puthex(length);
-	debug_nl();
 	buf[0] = length >> 8;
 	buf[1] = length & 0xFF;
 	if (defer) {
-		debug_puts("Deferred");
-		debug_nl();
 		mem_write(deferred_id, offset, buf, 2);
 	} else {
 		uint8_t cur[2];
@@ -628,9 +610,6 @@ void net_send_at_offset(uint16_t offset, uint16_t length) {
 		WRITE_REG(ENC_EWRPTL, offset & 0xFF);
 		WRITE_REG(ENC_EWRPTH, (offset >> 8) & 0xFF);
 		enc_write_packet_data(buf, 2);
-		debug_puts("Restore pos at ");
-		debug_puthex(cur[0] | (cur[1] << 8));
-		debug_nl();
 		WRITE_REG(ENC_EWRPTL, cur[0]);
 		WRITE_REG(ENC_EWRPTH, cur[1]);
 	}
