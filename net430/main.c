@@ -59,13 +59,13 @@ void client_callback(int socket, uint8_t new_state, uint16_t count,
 	}
 }
 
-#if 0
+#if 1
 const static uint8_t dst[] = { 0x20, 0x01, 0x16, 0xd8, 0xdd, 0xaa, 0x00, 0x1,
 		0x02, 0x23, 0x54, 0xff, 0xfe, 0xd5, 0x46, 0xf0 };
-#endif
-
+#else
 const static uint8_t dst[] = { 0x26, 0x07, 0xf2, 0x98, 0x00, 0x2, 0x01, 0x20,
 		0x00, 0x00, 0x00, 0x00, 0x0d, 0x83, 0xc0, 0xdc };
+#endif
 
 const static char httpResponseHeader[] =
 		"HTTP/1.1 200 OK\r\n"
@@ -75,8 +75,8 @@ const static char httpResponseHeaderPart2[] =
 		"</body></html>";
 #define RESPONSE_HEADER_SIZE (sizeof(httpResponseHeader)-1)
 
-const static char httpRequest[] = "GET /snail-notify.php HTTP/1.1\r\n"
-		"Host: xpg.dk\r\n\r\n";
+const static char httpRequest[] = "GET /post-notify.php HTTP/1.1\r\n"
+		"Host: localhost\r\n\r\n";
 
 static bool sendSignal = false;
 
@@ -86,8 +86,26 @@ uint16_t requestCounter = 0;
 #define PACKET_ACK			0xF2
 #define PACKET_SIGNAL		0xF3
 
+bool getRandomBit(){
+  ADC10CTL1 |= INCH_5;
+  ADC10CTL0 |= SREF_1 + ADC10SHT_1 + REFON + ADC10ON;
+  ADC10CTL0 |= ENC + ADC10SC;
+  while(ADC10CTL1 & ADC10BUSY);
+  return ADC10MEM & 0x01;
+}
+
+void init_random() {
+	uint16_t seqNo = 0;
+	for(int i=0; i<16; i++) {
+		seqNo |= getRandomBit() << i;
+	}
+
+	srand(seqNo);
+}
+
 int main(void) {
 	cpu_init();
+	init_random();
 
 	uart_init();
 

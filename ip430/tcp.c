@@ -8,9 +8,10 @@
 #include "mem.h"
 
 #define RECV_WINDOW		1500
+#define TCB_COUNT 10
 
 static uint16_t tcb_id;
-static uint8_t tcb_count;
+uint32_t tcp_initialSeqNo;
 
 /**
  TODO: Add retransmission queue and a timer tick to retransmit packages.
@@ -83,13 +84,18 @@ void net_tcp_end_packet(struct tcb *tcb) {
 }
 
 void tcp_init(void) {
-	tcb_count = 5;
+	tcp_initialSeqNo = rand() + (rand() << 16);
 
-	tcb_id = mem_alloc(sizeof(struct tcb) * tcb_count);
+	debug_puts("Initial sequence number: ");
+	debug_puthex(tcp_initialSeqNo >> 16);
+	debug_puthex(tcp_initialSeqNo & 0xFFFF);
+	debug_nl();
+
+	tcb_id = mem_alloc(sizeof(struct tcb) * TCB_COUNT);
 
 	struct tcb tcb;
 
-	for (int i = 0; i < tcb_count; i++) {
+	for (int i = 0; i < TCB_COUNT; i++) {
 		tcb.tcp_state = TCP_STATE_NONE;
 		mem_write(tcb_id, i * sizeof(struct tcb), (uint8_t*) &tcb,
 				sizeof(struct tcb));
@@ -186,7 +192,7 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 	struct tcb tcb;
 	uint16_t tcb_no;
 	tcb.tcp_state = TCP_STATE_NONE;
-	for (int i = 0; i < tcb_count; i++) {
+	for (int i = 0; i < TCB_COUNT; i++) {
 		mem_read(tcb_id, i * sizeof(struct tcb), &tcb, sizeof(struct tcb));
 		if (tcb.tcp_state != TCP_STATE_NONE && destPort == tcb.tcp_local_port) {
 			tcb_no = i;
@@ -257,7 +263,7 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 			tcb.tcp_rcv_nxt = seqNo + 1;
 
 			/* Initialize variables for sending */
-			tcb.tcp_iss = 312;
+			tcb.tcp_iss = tcp_initialSeqNo;
 			tcb.tcp_snd_wnd = window;
 			tcb.tcp_snd_una = tcb.tcp_iss;
 			tcb.tcp_snd_nxt = tcb.tcp_iss + 1;
@@ -402,7 +408,7 @@ int tcp_socket(tcp_callback callback) {
 	struct tcb tcb;
 	int socket = -1;
 
-	for (int i = 0; i < tcb_count; i++) {
+	for (int i = 0; i < TCB_COUNT; i++) {
 		//	tcb.tcp_state = TCP_STATE_NONE;
 		mem_read(tcb_id, i * sizeof(struct tcb), (uint8_t*) &tcb,
 				sizeof(struct tcb));

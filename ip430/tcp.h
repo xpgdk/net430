@@ -44,6 +44,7 @@ struct tcb {
 	tcp_callback	callback;
 };
 
+extern uint32_t tcp_initialSeqNo;
 
 /* Internal functions */
 void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr, uint16_t length, DATA_CB dataCb, void *priv);

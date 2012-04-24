@@ -477,6 +477,11 @@ void net_end_ipv6_packet() {
 
 void net_tick(void) {
 	uint8_t buf[1];
+
+#ifdef HAVE_TCP
+	tcp_initialSeqNo++;
+#endif
+
 	switch (net_state) {
 	case STATE_DAD: {
 		uint8_t addr_link[16];
