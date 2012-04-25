@@ -450,7 +450,8 @@ int16_t net_send_start(struct etherheader *header) {
 			// We can only handle one deferred packet
 			return -1;
 		}
-		debug_puts("Writing packet to secondary storage\r\n");
+		debug_puts("Writing packet to secondary storage");
+		debug_nl();
 		retval = deferred_id;
 	} else {
 #if 0

@@ -7,60 +7,107 @@
 
 void handle_icmp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 		uint16_t length, DATA_CB dataCb, void *priv) {
-	uint8_t payload[length - 4];
+	/**
+	 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+	 |     Type      |     Code      |          Checksum             |
+	 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+	 |                                                               |
+	 +                         Message Body                          +
+	 |                                                               |
+	 */
+
+	/* Allocate just enough data to handle the type, code, and checksum fields */
+	uint8_t buf[4];
 	uint8_t type;
 
-	dataCb(payload, 4, priv);
+#ifdef DEBUG_ICMP
+	PRINT_SP("handle_icmp: ");
+#endif
 
-	type = payload[0];
+	dataCb(buf, 4, priv);
 
-	calc_checksum(payload, 4);
+	type = buf[0];
 
-	uint16_t r = dataCb(payload, length - 4, priv);
+#ifdef DEBUG_ICMP
+	debug_puts("Payload size: ");
+	debug_puthex(length);
+	debug_nl();
+	debug_puts("ICMP Type:");
+	debug_puthex(type);
+	debug_nl();
+#endif
 
-	calc_checksum(payload, length - 4);
+	/*calc_checksum(payload, 4);
 
-	if (checksum != 0xFFFF) {
+	 uint16_t r = dataCb(payload, length - 4, priv);
+
+	 calc_checksum(payload, length - 4);
+
+	 if (checksum != 0xFFFF) {
+	 debug_puts("Checksum error");
+	 debug_nl();
+	 return;
+	 }*/
+
+	if (net_state != STATE_IDLE && type != ICMP_TYPE_NEIGHBOR_SOLICITATION
+			&& type != ICMP_TYPE_NEIGHBOR_ADVERTISMENT) {
+		debug_puts("Not in a state to receive ICMP message");
+		debug_nl();
 		return;
 	}
 
-	if (net_state != STATE_IDLE && type != ICMP_TYPE_NEIGHBOR_SOLICITATION
-			&& type != ICMP_TYPE_NEIGHBOR_ADVERTISMENT)
-		return;
-
 	switch (type) {
 	case ICMP_TYPE_NEIGHBOR_SOLICITATION:
-		/* First 4 bytes are 'reserved', we ignore them.
-		 Next 16 bytes are the target address
+		/* First 4 bytes are 'reserved', we ignore them. but must read them */
+		dataCb(buf, 4, priv);
+
+		/* Next 16 bytes are the target address. We assume it's one of our addresses as it was passed to us
+		 by handle_ipv6()
 		 */
+
+		/* We only reply if there is a source link-layer address option */
 		if (length > 20) {
-			if (payload[20] == 0x01) {
+			uint8_t addr[16];
+
+			/* Read address*/
+			dataCb(addr, 16, priv);
+
+			/* Read option 'header' */
+			dataCb(buf, 2, priv);
+			if (buf[0] == 0x01) {
+				uint8_t mac_addr[6];
+
+				dataCb(mac_addr, 6, priv);
 				/* We now got the link-layer address and IPv6 address of someone, store it */
-				register_mac_addr(payload + 22, sourceAddr);
-				send_neighbor_advertisment(payload + 22, payload + 4,
-						sourceAddr, payload + 4);
+				register_mac_addr(mac_addr, sourceAddr);
+				send_neighbor_advertisment(mac_addr, addr, sourceAddr, addr);
 			}
 		}
 		break;
-	case ICMP_TYPE_NEIGHBOR_ADVERTISMENT:
+	case ICMP_TYPE_NEIGHBOR_ADVERTISMENT: {
 		/* We ignore first 4 bytes */
-
+		uint8_t received_addr[16];
+		dataCb(buf, 4, priv);
+		dataCb(received_addr, 16, priv);
 		if (net_state == STATE_DAD) {
 			uint8_t addr[16];
+
 			net_get_address(ADDRESS_STORE_LINK_LOCAL_OFFSET, addr);
-			if (memcmp(payload + 4, addr, 16) == 0) {
+			if (memcmp(received_addr, addr, 16) == 0) {
 				net_state = STATE_INVALID;
 				return;
 			}
 		}
 
-		register_mac_addr(macSource, payload + 4);
+		register_mac_addr(macSource, received_addr);
 		net_state = STATE_IDLE;
+	}
 		break;
 	case ICMP_TYPE_ECHO_REQUEST:
 		if (length >= 8) {
-			uint16_t id = (payload[0] << 8) | payload[1];
-			uint16_t seqNo = (payload[2] << 8) | payload[3];
+			dataCb(buf, 4, priv);
+			uint16_t id = (buf[0] << 8) | buf[1];
+			uint16_t seqNo = (buf[2] << 8) | buf[3];
 			struct ipv6_packet_arg arg;
 			arg.dst_mac_addr = null_mac;
 			arg.dst_ipv6_addr = sourceAddr;
@@ -69,7 +116,16 @@ void handle_icmp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 			arg.protocol = PROTO_ICMP;
 
 			net_start_ipv6_packet(&arg);
-			net_send_icmp(ICMP_TYPE_ECHO_REPLY, 0, payload, length);
+			net_send_icmp_start(ICMP_TYPE_ECHO_REPLY, 0);
+			net_send_data(buf, 4);
+			calc_checksum(buf, 4);
+			uint16_t count;
+			length -= 8;
+			while( (count=dataCb(buf, 4, priv)) > 0 && length > 0) {
+				net_send_data(buf, count);
+				calc_checksum(buf, count);
+			}
+			//net_send_icmp(ICMP_TYPE_ECHO_REPLY, 0, payload, length);
 			net_end_ipv6_packet();
 		}
 		break;
@@ -78,6 +134,13 @@ void handle_icmp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 		 addresses. Next, loop through the options in the payload
 		 */
 	{
+		if( length > 140 ) {
+			debug_puts("Lengths exceeds 140 Bytes, ignore router advertisment in order to avoid trouble");
+			debug_nl();
+			return;
+		}
+		uint8_t payload[length-4];
+		dataCb(payload, length-4, priv);
 		uint8_t *c = payload + 12;
 		while (c < payload + length - 4) {
 			if (c[0] == 3) {
@@ -87,7 +150,7 @@ void handle_icmp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 				net_get_address(ADDRESS_STORE_MAIN_OFFSET, buf);
 				if (buf[0] == 0x00) {
 					// null_mac as destination means link-local (go figure)
-					routing_table_add(c+ 16, prefixLength/8, null_mac);
+					routing_table_add(c + 16, prefixLength / 8, null_mac);
 
 					// Default route
 					routing_table_add(unspec_addr, 0, macSource);
@@ -125,6 +188,25 @@ void net_send_icmp(uint8_t type, uint8_t code, uint8_t *body,
 
 	net_send_data(body, body_length);
 	calc_checksum(body, body_length);
+}
+
+void net_send_icmp_start(uint8_t type, uint8_t code) {
+	/**
+	 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+	 |     Type      |     Code      |          Checksum             |
+	 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+	 |                                                               |
+	 +                         Message Body                          +
+	 |                                                               |
+	 */
+
+	uint8_t buf[2];
+	buf[0] = type;
+	buf[1] = code;
+	net_send_data(buf, 2);
+	calc_checksum(buf, 2);
+
+	net_send_dummy_checksum();
 }
 
 void send_neighbor_solicitation(const uint8_t *dst_mac, const uint8_t *src_addr,

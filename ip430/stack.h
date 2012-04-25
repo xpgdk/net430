@@ -3,6 +3,11 @@
 
 #include <stdint.h>
 
+#undef DEBUG_IPV6
+#undef DEBUG_ICMP
+#undef DEBUG_TCP
+#define DEBUG_CHECKSUM
+
 struct etherheader {
 	uint8_t mac_dest[6];
 	uint8_t mac_source[6];
@@ -54,16 +59,16 @@ extern const uint8_t *enc_mac_addr;
 
 #define TYPE_IPV6 	0x86DD
 
-#define PROTO_UDP	17
-#define PROTO_TCP	6
-#define PROTO_ICMP	58
+#define PROTO_UDP	17 // 0x11
+#define PROTO_TCP	6  // 0x06
+#define PROTO_ICMP	58 // 0x3A
 
-#define ICMP_TYPE_ROUTER_SOLICITATION	133
-#define ICMP_TYPE_ROUTER_ADVERTISMENT	134
-#define ICMP_TYPE_NEIGHBOR_SOLICITATION 135
-#define ICMP_TYPE_NEIGHBOR_ADVERTISMENT 136
-#define ICMP_TYPE_ECHO_REQUEST		128
-#define ICMP_TYPE_ECHO_REPLY		129
+#define ICMP_TYPE_ROUTER_SOLICITATION	133 // 0x85
+#define ICMP_TYPE_ROUTER_ADVERTISMENT	134 // 0x86
+#define ICMP_TYPE_NEIGHBOR_SOLICITATION 135 // 0x87
+#define ICMP_TYPE_NEIGHBOR_ADVERTISMENT 136 // 0x88
+#define ICMP_TYPE_ECHO_REQUEST			128 // 0x89
+#define ICMP_TYPE_ECHO_REPLY			129 // 0x8A
 
 #define SIZE_ETHERNET_HEADER	sizeof(struct etherheader)
 #define SIZE_IPV6_HEADER		40

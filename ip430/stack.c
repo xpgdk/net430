@@ -42,6 +42,8 @@ static uint8_t const *address_lookup = NULL;
 static int16_t lookup_id;
 static uint16_t net_store_id;
 //static uint16_t lookup_addr_id;
+static bool checksum_leftover_set = false;
+static uint16_t checksum_leftover;
 
 #define ADDR_MAP_COUNT	10
 #define ADDR_MAP_SIZE 	(ADDR_MAP_COUNT*sizeof(struct addr_map_entry))
@@ -184,6 +186,7 @@ void assign_address_from_prefix(uint8_t *addr, uint8_t prefixLength) {
 	memcpy(ipv6_addr + prefixLength / 8, eui64, 8);
 	debug_puts("IPv6 Address configured: ");
 	print_addr(ipv6_addr);
+	debug_nl();
 	net_set_address(ADDRESS_STORE_MAIN_OFFSET, ipv6_addr);
 }
 
@@ -206,7 +209,9 @@ void register_mac_addr(const uint8_t *mac, const uint8_t *addr) {
 
 	debug_puts("Stored address in cache:");
 	print_addr(addr);
+	debug_puts(" -> ");
 	print_buf(mac, 6);
+	debug_nl();
 
 	uint8_t buf[16];
 
@@ -319,12 +324,14 @@ void net_init(const uint8_t *mac) {
 	memcpy(addr + 8, eui64, 8);
 
 	print_addr(addr);
+	debug_nl();
 	net_set_address(ADDRESS_STORE_LINK_LOCAL_OFFSET, addr);
 
 	memcpy(solicit_addr, solicited_mcast_prefix, 13);
 	memcpy(solicit_addr + 13, addr + 13, 3);
 
 	print_addr(addr);
+	debug_nl();
 	net_set_address(ADDRESS_STORE_SOLICITED_OFFSET, solicit_addr);
 
 	send_neighbor_solicitation(ether_bcast, unspec_addr, solicit_addr, addr);
@@ -391,6 +398,11 @@ void net_start_ipv6_packet(struct ipv6_packet_arg *arg) {
 	uint8_t buf[4];
 
 	checksum = /*arg->payload_length +*/ arg->protocol;
+	checksum_leftover_set = false;
+#ifdef DEBUG_CHECKSUM
+	debug_puts("Checksum reset");
+	debug_nl();
+#endif
 
 	struct etherheader header;
 
@@ -400,7 +412,8 @@ void net_start_ipv6_packet(struct ipv6_packet_arg *arg) {
 
 	if (is_null_mac(arg->dst_mac_addr)) {
 		if (!routing_table_lookup(arg->dst_ipv6_addr, header.mac_dest)) {
-			debug_puts("We are into trouble...");
+			debug_puts("We are in trouble...");
+			debug_nl();
 		}
 
 		if (is_null_mac(header.mac_dest)) {
@@ -414,7 +427,8 @@ void net_start_ipv6_packet(struct ipv6_packet_arg *arg) {
 				 net_send_start() will deal with that as long as we use an all zero dst_mac_addr.
 				 */
 				address_lookup = arg->dst_ipv6_addr;
-				debug_puts("MAC not found\n");
+				debug_puts("MAC not found");
+				debug_nl();
 				memcpy(header.mac_dest, null_mac, 6);
 			}
 		}
@@ -427,13 +441,13 @@ void net_start_ipv6_packet(struct ipv6_packet_arg *arg) {
 
 	int16_t r = net_send_start(&header);
 	if (r > 0) {
-		debug_puts("Lookup ID set\n");
+		debug_puts("Lookup ID set");
+		debug_nl();
 		lookup_id = r;
 	}
 
 	/* Version=6, traffic class=0, and flow label=0 part of the header */
 	net_send_data(ipv6_header, 4);
-
 
 	buf[0] = /*(arg->payload_length >> 8) & 0xFF*/ 0x00;
 	buf[1] = /*arg->payload_length & 0xFF*/ 0x00;
@@ -465,7 +479,7 @@ void net_end_ipv6_packet() {
 		/* Perform neighbor solicitation */
 		debug_puts("Lookup of ");
 		print_addr(address_lookup);
-		debug_puts("\r\n");
+		debug_nl();
 		uint8_t addr[16];
 		net_get_address(ADDRESS_STORE_LINK_LOCAL_OFFSET, addr);
 		send_neighbor_solicitation(ether_bcast, addr, address_lookup,
@@ -489,7 +503,7 @@ void net_tick(void) {
 		net_state = STATE_IDLE;
 		debug_puts("IPv6 Link Local address: ");
 		print_addr(addr_link);
-
+		debug_nl();
 		send_router_solicitation(addr_link, all_router_mcast);
 		/* Ready to communicate */
 	}
@@ -500,7 +514,7 @@ void net_tick(void) {
 			/* Perform neighbor solicitation */
 			debug_puts("Lookup of ");
 			print_addr(address_lookup);
-			debug_puts("\r\n");
+			debug_nl();
 			uint8_t addr[16];
 			net_get_address(ADDRESS_STORE_LINK_LOCAL_OFFSET, addr);
 			send_neighbor_solicitation(ether_bcast, addr, address_lookup,
@@ -520,6 +534,30 @@ void calc_checksum(const uint8_t *buf, uint16_t count) {
 	const uint8_t *last_byte;
 	uint16_t t;
 
+	if( checksum_leftover_set && count > 0 ) {
+		checksum_leftover_set = false;
+#ifdef DEBUG_CHECKSUM
+		debug_puts("Leftover of ");
+		debug_puthex(checksum_leftover);
+		debug_nl();
+#endif
+		/* An uneven number of bytes was calculated last, compensate for this */
+		t = checksum_leftover + buf[0];
+		checksum += t;
+		if (t > checksum)
+			checksum++;
+
+		count--;
+		buf++;
+	}
+
+#ifdef DEBUG_CHECKSUM
+	debug_puts("Checksum of ");
+	debug_puthex(count);
+	debug_puts(" bytes");
+	debug_nl();
+#endif
+
 	data_ptr = buf;
 	last_byte = data_ptr + count - 1;
 
@@ -531,10 +569,16 @@ void calc_checksum(const uint8_t *buf, uint16_t count) {
 		data_ptr += 2;
 	}
 	if (data_ptr == last_byte) {
-		t = (data_ptr[0] << 8);
+#ifdef DEBUG_CHECKSUM
+		debug_puts("Leftover set");
+		debug_nl();
+#endif
+		checksum_leftover_set = true;
+		checksum_leftover = data_ptr[0] << 8;
+		/*t = (data_ptr[0] << 8);
 		checksum += t;
 		if (t > checksum)
-			checksum++;
+			checksum++;*/
 	}
 }
 
@@ -593,6 +637,12 @@ void handle_ipv6(uint8_t *macSource, uint16_t length, DATA_CB dataCb,
 	calc_checksum(sourceAddr, 16);
 	calc_checksum(destAddr, 16);
 
+#ifdef DEBUG_IPV6
+	debug_puts("IPv6 Addr of incoming packet: ");
+	print_addr(destAddr);
+	debug_nl();
+#endif
+
 	uint8_t addr[16];
 
 	net_get_address(ADDRESS_STORE_MAIN_OFFSET, addr);
@@ -628,8 +678,18 @@ void handle_ipv6(uint8_t *macSource, uint16_t length, DATA_CB dataCb,
 	}
 
 	if (!receive) {
+		debug_puts("Not for us");
+		debug_nl();
 		return;
 	}
+
+#ifdef DEBUG_IPV6
+	debug_puts("Receive. nextHeader: ");
+	debug_puthex(nextHeader);
+	debug_nl();
+
+	PRINT_SP("Before protocol dispatch: ");
+#endif
 
 	switch (nextHeader) {
 	case PROTO_ICMP:
@@ -642,7 +702,6 @@ void handle_ipv6(uint8_t *macSource, uint16_t length, DATA_CB dataCb,
 		break;
 #ifdef HAVE_TCP
 	case PROTO_TCP:
-		debug_nl();
 		handle_tcp(macSource, sourceAddr, destination, payload_length, dataCb,
 				priv);
 		break;
@@ -655,7 +714,6 @@ void print_buf(const uint8_t *data, unsigned int count) {
 		debug_puthex(data[i]);
 		debug_puts(":");
 	}
-	debug_nl();
 }
 
 void print_addr(const uint8_t *addr) {
@@ -665,6 +723,5 @@ void print_addr(const uint8_t *addr) {
 		if (i < 14)
 			debug_puts(":");
 	}
-	debug_nl();
 }
 

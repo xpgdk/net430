@@ -17,6 +17,14 @@ uint16_t mem_free(void){
 
 uint16_t mem_read(uint16_t id, uint16_t offset, uint8_t *buf, uint16_t count) {
 	spi_mem_read(id+offset, buf, count);
+#if 0
+	debug_puts("Read from ");
+	debug_puthex(id+offset);
+	debug_nl();
+	print_buf(buf, count);
+	debug_nl();
+#endif
+
 	return count;
 }
 

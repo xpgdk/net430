@@ -10,10 +10,10 @@
 #define TCP_ACK		(1<<4)
 #define TCP_URG		(1<<5)
 
-#define TCP_STATE_NONE			0
-#define TCP_STATE_CLOSED		1
-#define TCP_STATE_LISTEN		2
-#define TCP_STATE_SYN_SENT		3
+#define TCP_STATE_NONE				0
+#define TCP_STATE_CLOSED			1
+#define TCP_STATE_LISTEN			2
+#define TCP_STATE_SYN_SENT			3
 #define TCP_STATE_SYN_RECEIVED 		4
 #define TCP_STATE_ESTABLISHED		5
 #define TCP_STATE_CLOSE_WAIT		6
@@ -24,7 +24,6 @@
 
 typedef void (*tcp_callback)(int,  uint8_t, uint16_t, DATA_CB , void *);
 
-
 struct tcb {
 	uint8_t	 local_addr[16];
 	uint8_t  remote_addr[16];
@@ -33,12 +32,12 @@ struct tcb {
 
 	uint32_t tcp_snd_una;
 	uint32_t tcp_snd_nxt;
-	uint32_t tcp_snd_wnd;
-	uint32_t tcp_iss;
+	//uint32_t tcp_snd_wnd;
+	//uint32_t tcp_iss;
 
 	uint32_t tcp_rcv_nxt;
-	uint32_t tcp_rcv_wnd;
-	uint32_t tcp_irs;
+	//uint32_t tcp_rcv_wnd;
+	//uint32_t tcp_irs;
 	uint8_t	tcp_state;
 
 	tcp_callback	callback;

@@ -1,5 +1,7 @@
 #include <msp430.h>
+#include <string.h>
 #include "uart.h"
+#include "debug.h"
 #include "enc28j60.h"
 
 #include <stdint.h>
@@ -59,48 +61,102 @@ void client_callback(int socket, uint8_t new_state, uint16_t count,
 	}
 }
 
-#if 1
-const static uint8_t dst[] = { 0x20, 0x01, 0x16, 0xd8, 0xdd, 0xaa, 0x00, 0x1,
-		0x02, 0x23, 0x54, 0xff, 0xfe, 0xd5, 0x46, 0xf0 };
+#if 0
+const static uint8_t dst[] = {0x20, 0x01, 0x16, 0xd8, 0xdd, 0xaa, 0x00, 0x1,
+	0x02, 0x23, 0x54, 0xff, 0xfe, 0xd5, 0x46, 0xf0};
 #else
-const static uint8_t dst[] = { 0x26, 0x07, 0xf2, 0x98, 0x00, 0x2, 0x01, 0x20,
-		0x00, 0x00, 0x00, 0x00, 0x0d, 0x83, 0xc0, 0xdc };
+//2607:F298:0002:0120:0000:0000:0243:A658
+const static uint8_t dst[] = { 0x26, 0x07, 0xF2, 0x98, 0x00, 0x02, 0x01, 0x20,
+		0x00, 0x00, 0x00, 0x00, 0x02, 0x43, 0xA6, 0x58 };
+/*const static uint8_t dst[] = { 0x26, 0x07, 0xf2, 0x98, 0x00, 0x2, 0x01, 0x20,
+ 0x00, 0x00, 0x00, 0x00, 0x0d, 0x83, 0xc0, 0xdc };*/
 #endif
 
-const static char httpResponseHeader[] =
-		"HTTP/1.1 200 OK\r\n"
-				"Server: net430\r\n"
-				"Content-Type: text/html\r\n\r\n<html><head><meta http-equiv=\"Refresh\" content=\"5\"></head><body>Usage counter:";
-const static char httpResponseHeaderPart2[] =
+const static char httpResponseHeader[] = "HTTP/1.1 200 OK\r\n"
+		"Server: net430\r\n"
+		"Content-Type: text/html\r\n\r\n"
+		"<html><head><meta http-equiv=\"Refresh\" content=\"20\"></head>"
+		"<body>"
+		"Request counter: $USAGE_COUNTER$<br>"
+		"Signal counter: $REQUEST_COUNTER$<br>"
 		"</body></html>";
-#define RESPONSE_HEADER_SIZE (sizeof(httpResponseHeader)-1)
 
-const static char httpRequest[] = "GET /post-notify.php HTTP/1.1\r\n"
-		"Host: localhost\r\n\r\n";
+const static char httpRequest[] = " GET /post-notify.php HTTP/1.1\r\n"
+		"Host: script.xpg.dk\r\n\r\n";
 
 static bool sendSignal = false;
 
 uint16_t requestCounter = 0;
+uint16_t notificationCounter = 0;
 
 #define PACKET_BAT_LEVEL 	0xF1
 #define PACKET_ACK			0xF2
 #define PACKET_SIGNAL		0xF3
 
-bool getRandomBit(){
-  ADC10CTL1 |= INCH_5;
-  ADC10CTL0 |= SREF_1 + ADC10SHT_1 + REFON + ADC10ON;
-  ADC10CTL0 |= ENC + ADC10SC;
-  while(ADC10CTL1 & ADC10BUSY);
-  return ADC10MEM & 0x01;
+bool getRandomBit() {
+	ADC10CTL1 |= INCH_5;
+	ADC10CTL0 |= SREF_1 + ADC10SHT_1 + REFON + ADC10ON;
+	ADC10CTL0 |= ENC + ADC10SC;
+	while (ADC10CTL1 & ADC10BUSY)
+		;
+	return ADC10MEM & 0x01;
 }
 
 void init_random() {
 	uint16_t seqNo = 0;
-	for(int i=0; i<16; i++) {
+	for (int i = 0; i < 16; i++) {
 		seqNo |= getRandomBit() << i;
 	}
 
 	srand(seqNo);
+}
+
+void tcp_send_int(uint16_t i) {
+	uint8_t buf[5] = { ' ', ' ', ' ', ' ', ' ' };
+
+	itoa(i, buf, 10);
+
+	tcp_send_data(buf, 4);
+}
+
+void tcp_send_template_data(const char *buf, uint16_t count) {
+	const char *end = buf + count;
+	while (buf < end) {
+		const char *p = strchr(buf, '$');
+		// Copy data up to p
+		if (p == NULL) {
+			p = end;
+		}
+
+		// Workaround checksum bug
+		/*if (((p-buf) % 2) != 0) {
+			debug_puts("checksum bug");
+			debug_nl();
+			p++;
+		}*/
+		tcp_send_data(buf, p - buf);
+		buf = p;
+
+		if( p != end) {
+			buf++;
+			// Perform replacement
+			const char *e = strchr(buf, '$');
+			if( e == NULL) {
+				e = end;
+			} else {
+				// Match is between buf and e
+				if( strncmp(buf, "USAGE_COUNTER", 13) == 0) {
+					tcp_send_int(requestCounter);
+				} else if( strncmp(buf, "REQUEST_COUNTER", 15) == 0) {
+					tcp_send_int(notificationCounter);
+				}
+				e++;
+			}
+			buf = e;
+		}
+	}
+	debug_puts("Done");
+	debug_nl();
 }
 
 int main(void) {
@@ -147,11 +203,11 @@ int main(void) {
 
 	while (true) {
 		if (rf12_recvDone() && rf12_crc == 0) {
-			if (rf12_data[0] == PACKET_BAT_LEVEL) {
+			if (rf12_data[0] == PACKET_SIGNAL) {
 				debug_puts("Got RF12 BAT LEVEL: ");
-				debug_puts(rf12_data+1);
+				debug_puts(rf12_data + 1);
 				debug_nl();
-				//sendSignal = true;
+				sendSignal = true;
 			}
 		}
 
@@ -168,19 +224,20 @@ int main(void) {
 		if (gotData) {
 			gotData = false;
 			requestCounter++;
-			uint8_t buf[5] = {' ', ' ', ' ', ' ', ' '};
-			uint16_t contentlength;
-
-			contentlength = 17;
-
-			itoa(requestCounter, buf, 10);
 
 			tcp_send_start(server_sock);
+
+			tcp_send_template_data(httpResponseHeader,
+					sizeof(httpResponseHeader) - 1);
+#if 0
+
 			tcp_send_data(httpResponseHeader, sizeof(httpResponseHeader)-1);
 			tcp_send_data(buf, 4);
 			tcp_send_data(httpResponseHeaderPart2, sizeof(httpResponseHeaderPart2)-1);
+#endif
 			tcp_send_end(server_sock);
 
+			PRINT_SP("Before tcp_close call: ");
 			tcp_close(server_sock);
 			gotData = false;
 		}
@@ -199,12 +256,13 @@ int main(void) {
 			uint8_t addr[16];
 			debug_puts("Button pressed");
 			debug_nl();
+			notificationCounter++;
 			net_get_address(ADDRESS_STORE_MAIN_OFFSET, addr);
 			tcp_connect(client_socket, addr, dst, 80);
 			sendSignal = false;
 		}
 
-		if (enc_idle && !gotChar  && rxstate == TXRECV ) {
+		if (enc_idle && !gotChar && rxstate == TXRECV) {
 			__bis_SR_register(CPUOFF | GIE);
 		}
 	}

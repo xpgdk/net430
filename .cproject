@@ -28,7 +28,7 @@
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/net430/ip430}&quot;"/>
 								</option>
 								<option id="dk.xpg.msp430eclipse.compiler.option.language.standard.950516659" name="Standard" superClass="dk.xpg.msp430eclipse.compiler.option.language.standard" value="dk.xpg.msp430eclipse.compiler.option.language.standard.c99" valueType="enumerated"/>
-								<option id="dk.xpg.msp430eclipse.compiler.option.symbols.defined.1961299050" superClass="dk.xpg.msp430eclipse.compiler.option.symbols.defined" valueType="definedSymbols">
+								<option id="dk.xpg.msp430eclipse.compiler.option.symbols.defined.1961299050" name="Defined Symbols (-D)" superClass="dk.xpg.msp430eclipse.compiler.option.symbols.defined" valueType="definedSymbols">
 									<listOptionValue builtIn="false" value="HAVE_TCP"/>
 								</option>
 								<inputType id="dk.xpg.msp430eclipse.tool.compiler.gcc.input.1068527751" name="C Source File" superClass="dk.xpg.msp430eclipse.tool.compiler.gcc.input"/>

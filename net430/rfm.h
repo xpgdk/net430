@@ -211,8 +211,6 @@ void rf12_initialize(uint8_t id, uint8_t band, uint8_t g) {
     nodeid = id;
     group = g;
 
-    debug_puts("rf12_initialize");
-
 	rf12_port_init();
 	//__delay_cycles(5000*USEC);
 

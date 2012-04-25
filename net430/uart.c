@@ -93,7 +93,7 @@ void debug_puthex(uint16_t v) {
 }
 
 void debug_nl() {
-	debug_puts("\r\n");
+	debug_puts("\n");
 }
 
 interrupt(USCIAB0RX_VECTOR) USCI0RX_ISR(void)
