@@ -2,11 +2,21 @@
 #define STACK_H
 
 #include <stdint.h>
+#include "debug.h"
 
 #undef DEBUG_IPV6
-#undef DEBUG_ICMP
+#define DEBUG_ICMP
+#define VALIDATE_STACK
+#undef DBEUG_STACK
 #undef DEBUG_TCP
-#define DEBUG_CHECKSUM
+#undef DEBUG_CHECKSUM
+
+#ifdef VALIDATE_STACK
+extern uint16_t _end;
+#define CHECK_SP(loc) do {register uint16_t sp; GET_SP(sp); if(sp <= _end-20) {debug_puts(loc);debug_puts("POTENTIAL STACK OVERFLOW: "); debug_puthex(sp); debug_nl();}} while(0)
+#else
+#define CHECK_SP(loc)
+#endif
 
 struct etherheader {
 	uint8_t mac_dest[6];

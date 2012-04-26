@@ -30,6 +30,7 @@ void uart_rx_isr(unsigned char c) {
 
 void server_callback(int socket, uint8_t new_state, uint16_t count,
 		DATA_CB data, void *priv) {
+	CHECK_SP("server_callback: ");
 	debug_puts("State: ");
 	debug_puthex(new_state);
 	debug_nl();
@@ -49,6 +50,7 @@ void server_callback(int socket, uint8_t new_state, uint16_t count,
 
 void client_callback(int socket, uint8_t new_state, uint16_t count,
 		DATA_CB data, void *priv) {
+	CHECK_SP("client_callback: ");
 	debug_puts("Client state: ");
 	debug_puthex(new_state);
 	debug_nl();

@@ -28,6 +28,8 @@ void tcp_send_packet(struct tcb *tcb, uint16_t flags) {
 	struct ipv6_packet_arg arg;
 	uint8_t buf[4];
 
+	CHECK_SP("tcp_send_packet: ");
+
 #ifdef DEBUG_TCP
 	debug_puts("Send Flags: ");
 	if (flags & TCP_FIN) {
@@ -90,6 +92,8 @@ void tcp_send_packet(struct tcb *tcb, uint16_t flags) {
 void net_tcp_end_packet(struct tcb *tcb) {
 	uint16_t length = net_get_length()
 			- (SIZE_ETHERNET_HEADER + SIZE_IPV6_HEADER + SIZE_TCP_HEADER);
+
+	CHECK_SP("net_tcp_end_packet: ");
 	if (length > 0) {
 		tcb->tcp_snd_nxt += length;
 	}
@@ -127,7 +131,7 @@ void tcp_init(void) {
 void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 		uint16_t length, DATA_CB dataCb, void *priv) {
 	uint8_t buf[4];
-
+	CHECK_SP("handle_tcp, entry: ");
 #ifdef DEBUG_TCP
 	PRINT_SP("in handle_tcp: ");
 
@@ -231,12 +235,38 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 	}
 
 	if( tcb_no == 0xFFFF ) {
-		debug_puts("Not TCB found, ignoring packet");
+		debug_puts("No TCB found, ignoring packet");
+		debug_nl();
+		debug_puts("Source port: ");
+		debug_puthex(sourcePort);
+		debug_nl();
+		debug_puts("Dest   port: ");
+		debug_puthex(destPort);
+		debug_nl();
+		debug_puts("SeqNo: ");
+		debug_puthex(seqNo >> 16);
+		debug_puthex(seqNo & 0xFFFF);
+		debug_nl();
+		debug_puts("Flags: ");
+		if (flags & TCP_FIN) {
+			debug_puts("FIN, ");
+		}
+		if (flags & TCP_SYN) {
+			debug_puts("SYN, ");
+		}
+		if (flags & TCP_RST) {
+			debug_puts("RST, ");
+		}
+		if (flags & TCP_ACK) {
+			debug_puts("ACK, ");
+		}
 		debug_nl();
 		return;
 	}
 
 	uint32_t data_length = length - (dataOffset * 4);
+
+	CHECK_SP("handle_tcp, middle: ");
 
 #ifdef DEBUG_TCP
 	debug_puts("State: ");
@@ -449,6 +479,8 @@ int tcp_socket(tcp_callback callback) {
 	struct tcb tcb;
 	int socket = -1;
 
+	CHECK_SP("tcp_socket ");
+
 	for (int i = 0; i < TCB_COUNT; i++) {
 		//	tcb.tcp_state = TCP_STATE_NONE;
 		mem_read(tcb_id, i * sizeof(struct tcb), (uint8_t*) &tcb,
@@ -468,6 +500,7 @@ int tcp_socket(tcp_callback callback) {
 
 void tcp_listen(int socket, uint16_t port) {
 	struct tcb tcb;
+	CHECK_SP("tcp_listen: ");
 	mem_read(tcb_id, socket * sizeof(struct tcb), (uint8_t*) &tcb,
 			sizeof(struct tcb));
 	tcb.tcp_local_port = port;
@@ -478,6 +511,7 @@ void tcp_listen(int socket, uint16_t port) {
 
 void tcp_send(int socket, const uint8_t *buf, uint16_t count) {
 	struct tcb tcb;
+	CHECK_SP("tcp_send: ");
 	mem_read(tcb_id, socket * sizeof(struct tcb), (uint8_t*) &tcb,
 			sizeof(struct tcb));
 
@@ -493,6 +527,7 @@ void tcp_send(int socket, const uint8_t *buf, uint16_t count) {
 
 void tcp_send_start(int socket) {
 	struct tcb tcb;
+	CHECK_SP("tcp_send_start: ");
 	mem_read(tcb_id, socket * sizeof(struct tcb), (uint8_t*) &tcb,
 			sizeof(struct tcb));
 
@@ -502,12 +537,14 @@ void tcp_send_start(int socket) {
 }
 
 void tcp_send_data(const uint8_t *buf, uint16_t count) {
+	CHECK_SP("tcp_send_data: ");
 	net_send_data(buf, count);
 	calc_checksum(buf, count);
 }
 
 void tcp_send_end(int socket) {
 	struct tcb tcb;
+	CHECK_SP("tcp_send_end: ");
 	mem_read(tcb_id, socket * sizeof(struct tcb), (uint8_t*) &tcb,
 			sizeof(struct tcb));
 
@@ -519,12 +556,14 @@ void tcp_send_end(int socket) {
 
 void tcp_close(int socket) {
 	struct tcb tcb;
+	CHECK_SP("tcp_close: ");
 	mem_read(tcb_id, socket * sizeof(struct tcb), (uint8_t*) &tcb,
 			sizeof(struct tcb));
 
 	tcp_send_packet(&tcb, TCP_FIN | TCP_ACK);
 	net_tcp_end_packet(&tcb);
 	tcb.tcp_state = TCP_STATE_FIN_WAIT_2;
+	tcb.tcp_snd_nxt++;
 	mem_write(tcb_id, socket * sizeof(struct tcb), (uint8_t*) &tcb,
 			sizeof(struct tcb));
 }
@@ -532,6 +571,7 @@ void tcp_close(int socket) {
 void tcp_connect(int socket, uint8_t *local_addr, uint8_t *remote_addr,
 		uint16_t port) {
 	struct tcb tcb;
+	CHECK_SP("tcp_connect: ");
 	mem_read(tcb_id, socket * sizeof(struct tcb), (uint8_t*) &tcb,
 			sizeof(struct tcb));
 	tcb.tcp_state = TCP_STATE_SYN_SENT;

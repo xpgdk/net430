@@ -19,7 +19,7 @@ void handle_icmp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 	/* Allocate just enough data to handle the type, code, and checksum fields */
 	uint8_t buf[4];
 	uint8_t type;
-
+	CHECK_SP("handle_icmp: ");
 #ifdef DEBUG_ICMP
 	PRINT_SP("handle_icmp: ");
 #endif
@@ -140,6 +140,7 @@ void handle_icmp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 			return;
 		}
 		uint8_t payload[length-4];
+		CHECK_SP("handle_icmp, ICMP_TYPE_ROUTER_ADVERTISMENT: ");
 		dataCb(payload, length-4, priv);
 		uint8_t *c = payload + 12;
 		while (c < payload + length - 4) {
@@ -179,6 +180,7 @@ void net_send_icmp(uint8_t type, uint8_t code, uint8_t *body,
 	 */
 
 	uint8_t buf[2];
+	CHECK_SP("net_send_icmp: ");
 	buf[0] = type;
 	buf[1] = code;
 	net_send_data(buf, 2);
@@ -201,6 +203,8 @@ void net_send_icmp_start(uint8_t type, uint8_t code) {
 	 */
 
 	uint8_t buf[2];
+	CHECK_SP("net_send_icmp_start: ");
+
 	buf[0] = type;
 	buf[1] = code;
 	net_send_data(buf, 2);
@@ -213,6 +217,7 @@ void send_neighbor_solicitation(const uint8_t *dst_mac, const uint8_t *src_addr,
 		const uint8_t *dst_addr, const uint8_t *addr) {
 	uint16_t payload_length = 20; /* Solicitation */
 	uint8_t buf[20 + 8]; /* Room for solicitation + source link-layer option */
+	CHECK_SP("net_send_solicitation: ");
 
 	if (src_addr != unspec_addr) {
 		payload_length += 8;
@@ -268,6 +273,7 @@ void send_neighbor_advertisment(const uint8_t *dst_mac, const uint8_t *src_addr,
 	/* Length here does not include ICMP header */
 	//uint16_t payload_length = 20 + 8; /* Advertisment + target-link layer option*/
 	uint8_t buf[20 + 8];
+	CHECK_SP("net_neighbor_advertisment: ");
 
 	struct ipv6_packet_arg arg;
 
@@ -293,6 +299,7 @@ void send_neighbor_advertisment(const uint8_t *dst_mac, const uint8_t *src_addr,
 void send_router_solicitation(const uint8_t *src_addr, const uint8_t *dst_addr) {
 	uint16_t payload_length = 4;
 	uint8_t buf[payload_length];
+	CHECK_SP("send_router_solicitation: ");
 
 	struct ipv6_packet_arg arg;
 	arg.dst_mac_addr = ether_bcast;

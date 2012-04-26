@@ -79,10 +79,12 @@ void construct_solicited_mcast_addr(uint8_t *solicited_mcast,
 bool has_ipv6_addr(const uint8_t *ipaddr);
 
 void net_get_address(uint8_t offset, uint8_t *target) {
+	CHECK_SP("net_get_addr: ");
 	mem_read(net_store_id, ADDR_STORE_OFFSET + offset, target, 16);
 }
 
 void net_set_address(uint8_t offset, uint8_t *source) {
+	CHECK_SP("net_set_addr: ");
 	mem_write(net_store_id, ADDR_STORE_OFFSET + offset, source, 16);
 }
 
@@ -90,6 +92,8 @@ bool routing_table_lookup(const uint8_t *destAddr, uint8_t *nextHopMac) {
 	struct routing_table_entry entry;
 	bool found = false;
 	uint8_t prefixLength = 0;
+
+	CHECK_SP("routing_table_lookup: ");
 
 #if 0
 	debug_puts("routing_table_lookup: ");
@@ -134,6 +138,8 @@ bool routing_table_lookup(const uint8_t *destAddr, uint8_t *nextHopMac) {
 bool routing_table_add(const uint8_t *prefix, uint8_t prefixLength,
 		const uint8_t *nextHopMac) {
 	struct routing_table_entry entry;
+
+	CHECK_SP("routing_table_add: ");
 
 	for (int i = 0; i < ROUTING_TABLE_COUNT; i++) {
 		mem_read(net_store_id,
@@ -182,6 +188,9 @@ void assign_address_from_prefix(uint8_t *addr, uint8_t prefixLength) {
 	mem_read(net_store_id, EUI_OFFSET, eui64, 8);
 
 	uint8_t ipv6_addr[16];
+
+	CHECK_SP("assign_address_from_prefix: ");
+
 	memcpy(ipv6_addr, addr, prefixLength / 8);
 	memcpy(ipv6_addr + prefixLength / 8, eui64, 8);
 	debug_puts("IPv6 Address configured: ");
@@ -215,6 +224,8 @@ void register_mac_addr(const uint8_t *mac, const uint8_t *addr) {
 
 	uint8_t buf[16];
 
+	CHECK_SP("register_mac_addr: ");
+
 	mem_read(net_store_id, LOOKUP_OFFSET, buf, 16);
 
 	if (buf[0] != 0x0) {
@@ -227,8 +238,10 @@ void register_mac_addr(const uint8_t *mac, const uint8_t *addr) {
 }
 
 bool find_mac_addr(uint8_t *mac, const uint8_t *addr) {
+	uint8_t addr_map[16];
+
+	CHECK_SP("find_mac_addr: ");
 	for (int i = 0; i < ADDR_MAP_COUNT; i++) {
-		uint8_t addr_map[16];
 		mem_read(net_store_id,
 				ADDR_MAP_OFFSET + (i * sizeof(struct addr_map_entry)) + 6,
 				addr_map, 16);
@@ -243,8 +256,9 @@ bool find_mac_addr(uint8_t *mac, const uint8_t *addr) {
 }
 
 bool has_ipv6_addr(const uint8_t *ipaddr) {
+	uint8_t addr_map[16];
+	CHECK_SP("has_ipv6_addr: ");
 	for (int i = 0; i < ADDR_MAP_COUNT; i++) {
-		uint8_t addr_map[16];
 		mem_read(net_store_id,
 				ADDR_MAP_OFFSET + (i * sizeof(struct addr_map_entry)) + 6,
 				addr_map, 16);
@@ -446,6 +460,8 @@ void net_start_ipv6_packet(struct ipv6_packet_arg *arg) {
 		lookup_id = r;
 	}
 
+	CHECK_SP("net_start_ipv6_packet: ");
+
 	/* Version=6, traffic class=0, and flow label=0 part of the header */
 	net_send_data(ipv6_header, 4);
 
@@ -465,6 +481,9 @@ void net_start_ipv6_packet(struct ipv6_packet_arg *arg) {
 void net_end_ipv6_packet() {
 	uint16_t length = net_get_length()-(SIZE_IPV6_HEADER+SIZE_ETHERNET_HEADER);
 	uint8_t buf[2];
+
+	CHECK_SP("net_end_ipv6_packet: ");
+
 	buf[0] = (length >> 8) & 0xFF;
 	buf[1] = length & 0xFF;
 	calc_checksum(buf, 2);
@@ -490,7 +509,7 @@ void net_end_ipv6_packet() {
 }
 
 void net_tick(void) {
-	uint8_t buf[1];
+	CHECK_SP("net_tick, start: ");
 
 #ifdef HAVE_TCP
 	tcp_initialSeqNo++;
@@ -499,6 +518,7 @@ void net_tick(void) {
 	switch (net_state) {
 	case STATE_DAD: {
 		uint8_t addr_link[16];
+		CHECK_SP("net_tick, STATE_DAD: ");
 		net_get_address(ADDRESS_STORE_LINK_LOCAL_OFFSET, addr_link);
 		net_state = STATE_IDLE;
 		debug_puts("IPv6 Link Local address: ");
@@ -587,6 +607,8 @@ void handle_ethernet(struct etherheader *header, uint16_t length,
 	uint16_t type = header->type[0] << 8;
 	type |= header->type[1] & 0xFF;
 
+	CHECK_SP("handle_ethernet: ");
+
 	if (type == TYPE_IPV6) {
 		handle_ipv6(header->mac_source, length, dataCb, priv);
 	}
@@ -596,6 +618,8 @@ void handle_ipv6(uint8_t *macSource, uint16_t length, DATA_CB dataCb,
 		void *priv) {
 	uint16_t count;
 	uint8_t buf[2];
+
+	CHECK_SP("handle_ipv6, entry: ");
 
 	checksum = 0;
 
@@ -645,6 +669,8 @@ void handle_ipv6(uint8_t *macSource, uint16_t length, DATA_CB dataCb,
 
 	uint8_t addr[16];
 
+	CHECK_SP("handle_ipv6, before check addr: ");
+
 	net_get_address(ADDRESS_STORE_MAIN_OFFSET, addr);
 
 	/* TODO: Follow header chain until we find something valid */
@@ -678,8 +704,10 @@ void handle_ipv6(uint8_t *macSource, uint16_t length, DATA_CB dataCb,
 	}
 
 	if (!receive) {
+#ifdef DEBUG_IPV6
 		debug_puts("Not for us");
 		debug_nl();
+#endif
 		return;
 	}
 
