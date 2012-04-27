@@ -83,8 +83,9 @@ const static char httpResponseHeader[] = "HTTP/1.1 200 OK\r\n"
 		"Signal counter: $REQUEST_COUNTER$<br>"
 		"</body></html>";
 
-const static char httpRequest[] = " GET /post-notify.php HTTP/1.1\r\n"
+const static char httpRequest[] = "GET /post-notify.php HTTP/1.0\r\n"
 		"Host: script.xpg.dk\r\n\r\n";
+		//"Host: localhost\r\n\r\n";
 
 static bool sendSignal = false;
 
@@ -205,6 +206,9 @@ int main(void) {
 
 	while (true) {
 		if (rf12_recvDone() && rf12_crc == 0) {
+			debug_puts("Got RF12 packet: ");
+			debug_puthex(rf12_data[0]);
+			debug_nl();
 			if (rf12_data[0] == PACKET_SIGNAL) {
 				debug_puts("Got RF12 BAT LEVEL: ");
 				debug_puts(rf12_data + 1);
