@@ -16,4 +16,5 @@ force:
 	
 
 clean:
+	$(MAKE) -C $(IP430_DIR) clean
 	rm -f *.o tun
