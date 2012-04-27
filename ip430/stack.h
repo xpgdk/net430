@@ -2,6 +2,7 @@
 #define STACK_H
 
 #include <stdint.h>
+#include <stdbool.h>
 #include "debug.h"
 
 #undef DEBUG_IPV6
@@ -11,7 +12,7 @@
 #undef DEBUG_TCP
 #undef DEBUG_CHECKSUM
 
-#ifdef VALIDATE_STACK
+#if defined(VALIDATE_STACK)
 extern uint16_t _end;
 #define CHECK_SP(loc) do {register uint16_t sp; GET_SP(sp); if(sp <= _end-20) {debug_puts(loc);debug_puts("POTENTIAL STACK OVERFLOW: "); debug_puthex(sp); debug_nl();}} while(0)
 #else
@@ -126,6 +127,7 @@ void handle_ipv6(uint8_t *macSource, uint16_t length, DATA_CB dataCb, void *priv
 void print_buf(const uint8_t *data, unsigned int count);
 void print_addr(const uint8_t *addr);
 void calc_checksum(const uint8_t *buf, uint16_t count);
+bool routing_table_add(const uint8_t *prefix, uint8_t prefixLength, const uint8_t *nextHopMac);
 
 /* Implemented by low-level driver */
 int16_t net_send_start(struct etherheader *header);

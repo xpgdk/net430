@@ -1,6 +1,7 @@
 #ifdef HAVE_TCP
 #include <stdint.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "tcp.h"
 #include "stack.h"
