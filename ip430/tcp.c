@@ -261,7 +261,7 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 			debug_puts("ACK, ");
 		}
 		debug_nl();
-		return;
+		tcb.tcp_state = TCP_STATE_NONE;
 	}
 
 	uint32_t data_length = length - (dataOffset * 4);
@@ -367,7 +367,7 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 			tcb.tcp_rcv_nxt = seqNo + 1;
 			tcp_send_packet(&tcb, TCP_ACK);
 			net_tcp_end_packet(&tcb);
-			tcb.tcp_snd_nxt--;
+			//tcb.tcp_snd_nxt--;
 			/* Update TCB */
 			mem_write(tcb_id, tcb_no * sizeof(struct tcb), &tcb,
 					sizeof(struct tcb));
@@ -576,7 +576,7 @@ void tcp_connect(int socket, uint8_t *local_addr, uint8_t *remote_addr,
 			sizeof(struct tcb));
 	tcb.tcp_state = TCP_STATE_SYN_SENT;
 
-	tcb.tcp_local_port = 45304;
+	tcb.tcp_local_port = tcp_initialSeqNo & 0xFFFF;
 	tcb.tcp_remote_port = port;
 	memcpy(tcb.local_addr, local_addr, 16);
 	memcpy(tcb.remote_addr, remote_addr, 16);
