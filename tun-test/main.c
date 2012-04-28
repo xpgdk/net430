@@ -65,6 +65,9 @@ int tun_alloc(char *dev, int flags) {
   return fd;
 }
 
+const static uint8_t dst[] = {0x20, 0x01, 0x16, 0xd8, 0xdd, 0xaa, 0x00, 0x1,
+	0x02, 0x23, 0x54, 0xff, 0xfe, 0xd5, 0x46, 0xf0};
+
 void server_socket_callback(int socket, uint8_t state, uint16_t count, DATA_CB dataCb, void *priv) {
 	if( state == TCP_STATE_ESTABLISHED && count > 0 ) {
 		uint8_t buf[count];
@@ -77,6 +80,22 @@ void server_socket_callback(int socket, uint8_t state, uint16_t count, DATA_CB d
 		tcp_listen(socket, 8000);
 	}
 }
+const static char httpRequest[] = "GET /post-notify.php HTTP/1.0\r\n"
+		//"Host: script.xpg.dk\r\n\r\n";
+		"Host: localhost\r\n\r\n";
+
+void client_socket_callback(int client_socket, uint8_t new_state, uint16_t count,
+		DATA_CB data, void *priv) {
+	debug_puts("Client state: ");
+	debug_puthex(new_state);
+	debug_nl();
+
+	if (new_state == TCP_STATE_ESTABLISHED && count == 0) {
+          tcp_send(client_socket, httpRequest, sizeof(httpRequest) - 1);
+          tcp_close(client_socket);
+	}
+}
+
 int
 main(int argc, char *argv[]) {
 	char tun_name[IFNAMSIZ];
@@ -99,34 +118,48 @@ main(int argc, char *argv[]) {
 	printf("Deferred ID: %d\n", deferred_id);
 	printf("MEM FREE: %d\n", mem_free());
 
-	struct pollfd p[1];
+	struct pollfd p[2];
 	p[0].fd = fd;
 	p[0].events = POLLIN;
+	p[1].fd = 0;
+	p[1].events = POLLIN;
 
 	int server_socket = tcp_socket(server_socket_callback);
 	tcp_listen(server_socket, 8000);
+
+        int client_socket = tcp_socket(client_socket_callback);
 
 	while(1) {
 		int nread;
 		struct etherframe frame;
 
-		nread = poll(p, 1, 500);
+		nread = poll(p, 2, 500);
 
 		if (nread == 0) {
 			net_tick();
 			continue;
 		}
-		nread = read(fd, &frame, sizeof(frame));
-		if(nread < 0) {
-			perror("Reading from interface");
-			close(fd);
-			exit(1);
-		}
+                if(p[1].revents != 0) {
+                  uint8_t addr[16];
+                  debug_puts("Button pressed");
+                  debug_nl();
+                  net_get_address(ADDRESS_STORE_MAIN_OFFSET, addr);
+                  tcp_connect(client_socket, addr, dst, 80);
+                  read(0, &frame, 1);
+                }
+                if(p[0].revents != 0) {
+                  nread = read(fd, &frame, sizeof(frame));
+                  if(nread < 0) {
+                          perror("Reading from interface");
+                          close(fd);
+                          exit(1);
+                  }
 
-		struct data_prov_priv p;
-		p.data = frame.payload;
-		p.count = nread - sizeof(struct etherheader);
-		handle_ethernet(&frame.header, p.count, data_provider, &p);
+                  struct data_prov_priv p;
+                  p.data = frame.payload;
+                  p.count = nread - sizeof(struct etherheader);
+                  handle_ethernet(&frame.header, p.count, data_provider, &p);
+                }
 		
 	}
 }

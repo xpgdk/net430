@@ -15,7 +15,7 @@ uint16_t mem_free(void){
 	return SPI_MEM_SIZE - mem_current;
 }
 
-uint16_t mem_read(uint16_t id, uint16_t offset, uint8_t *buf, uint16_t count) {
+uint16_t mem_read(uint16_t id, uint16_t offset, void *buf, uint16_t count) {
 	spi_mem_read(id+offset, buf, count);
 #if 0
 	debug_puts("Read from ");
@@ -28,7 +28,7 @@ uint16_t mem_read(uint16_t id, uint16_t offset, uint8_t *buf, uint16_t count) {
 	return count;
 }
 
-uint16_t mem_write(uint16_t id, uint16_t offset, const uint8_t *buf, uint16_t count) {
+uint16_t mem_write(uint16_t id, uint16_t offset, const void *buf, uint16_t count) {
 #if 0
 	debug_puts("Writing to ");
 	debug_puthex(id+offset);

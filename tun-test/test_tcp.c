@@ -64,6 +64,16 @@ test_tcp_in_window(void) {
 
 	min = 100;
 	max = 5000;
+	no = 5000;
+	ASSERT("100 <= 5000 <= 5000", tcp_in_window(&no, &min, &max));
+
+	min = 100;
+	max = 5000;
+	no = 100;
+	ASSERT("100 <= 100 <= 5000", tcp_in_window(&no, &min, &max));
+
+	min = 100;
+	max = 5000;
 	no = 50;
 	ASSERT("!(100 <= 50 <= 5000)", !tcp_in_window(&no, &min, &max));
 

@@ -7,7 +7,7 @@
 
 #undef DEBUG_IPV6
 #define DEBUG_ICMP
-#define VALIDATE_STACK
+#undef VALIDATE_STACK
 #undef DBEUG_STACK
 #undef DEBUG_TCP
 #undef DEBUG_CHECKSUM

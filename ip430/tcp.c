@@ -391,7 +391,7 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 				tcb.tcp_snd_una = ackNo;
 			}
 
-			if (tcp_compare(&tcb.tcp_snd_una, &tcb.tcp_snd_nxt) > 0) {
+			if (tcp_compare(&tcb.tcp_snd_una, &tcb.tcp_snd_nxt) >= 0) {
 				tcb.tcp_state = TCP_STATE_ESTABLISHED;
 				tcp_send_packet(&tcb, TCP_ACK);
 				net_tcp_end_packet(&tcb);
