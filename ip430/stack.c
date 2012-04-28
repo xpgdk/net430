@@ -484,6 +484,11 @@ void net_end_ipv6_packet() {
 
 	CHECK_SP("net_end_ipv6_packet: ");
 
+	/* Ensure that the length is calculated as being on an even address. */
+	if( checksum_leftover_set ) {
+		buf[0] = 0;
+		calc_checksum(buf, 1);
+	}
 	buf[0] = (length >> 8) & 0xFF;
 	buf[1] = length & 0xFF;
 	calc_checksum(buf, 2);
@@ -554,6 +559,13 @@ void calc_checksum(const uint8_t *buf, uint16_t count) {
 	const uint8_t *last_byte;
 	uint16_t t;
 
+#ifdef DEBUG_CHECKSUM
+	debug_puts("Checksum of ");
+	debug_puthex(count);
+	debug_puts(" bytes");
+	debug_nl();
+#endif
+
 	if( checksum_leftover_set && count > 0 ) {
 		checksum_leftover_set = false;
 #ifdef DEBUG_CHECKSUM
@@ -571,12 +583,6 @@ void calc_checksum(const uint8_t *buf, uint16_t count) {
 		buf++;
 	}
 
-#ifdef DEBUG_CHECKSUM
-	debug_puts("Checksum of ");
-	debug_puthex(count);
-	debug_puts(" bytes");
-	debug_nl();
-#endif
 
 	data_ptr = buf;
 	last_byte = data_ptr + count - 1;

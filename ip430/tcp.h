@@ -50,6 +50,8 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr, ui
 void tcp_init(void);
 void tcp_send_packet(struct tcb *tcb, uint16_t flags);
 void net_tcp_end_packet(struct tcb *tcb);
+bool tcp_in_window(uint32_t *no, uint32_t *min, uint32_t *max);
+int8_t tcp_compare(uint32_t *no1, uint32_t *no2);
 
 /* TCP API */
 int tcp_socket(tcp_callback callback);

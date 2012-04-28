@@ -14,6 +14,7 @@
 static uint16_t tcb_id;
 uint32_t tcp_initialSeqNo;
 
+
 /**
  TODO: Add retransmission queue and a timer tick to retransmit packages.
  We won't be keeping received packets, as we require them to be in-order
@@ -191,11 +192,12 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 
 	/* Parse options */
 	uint8_t op;
-	uint16_t read;
+	uint16_t read = 0x11;
 	while (read < dataOffset * 4) {
 		dataCb(&op, 1, priv);
 		read++;
 		if (op == 0x0) {
+			dataCb(&op, 1, priv);
 			break;
 		}
 		switch (op) {
@@ -262,6 +264,8 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 			debug_puts("ACK, ");
 		}
 		debug_nl();
+
+		// Ensure that we handle it as a TCB in CLOSED state
 		tcb.tcp_state = TCP_STATE_NONE;
 	}
 
@@ -291,6 +295,7 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 
 		if (flags & TCP_ACK) {
 			ttcb.tcp_snd_nxt = ackNo;
+			ttcb.tcp_rcv_nxt = 0;
 		} else {
 			ttcb.tcp_snd_nxt = 0;
 			ttcb.tcp_rcv_nxt = seqNo + data_length;
@@ -305,7 +310,16 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 		return;
 	}
 
-	if (tcb.tcp_state == TCP_STATE_LISTEN) {
+	if (data_length == 0) {
+		/* Add the two zero case handlings */
+	} else {
+		//if ( tcb->tcp_rcv_wnd
+	}
+	/* TODO: Add window check and deal with out-of order and
+	 lost packages */
+
+	switch (tcb.tcp_state) {
+	case TCP_STATE_LISTEN:
 		if (flags & TCP_RST) {
 			return;
 		}
@@ -341,34 +355,52 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 
 			tcp_send_packet(&tcb, TCP_SYN | TCP_ACK);
 			net_tcp_end_packet(&tcb);
-			tcb.tcp_snd_nxt++; // Due to ACK
+			tcb.tcp_snd_nxt++; // Due to SYN
 			/* Update TCB */
 			mem_write(tcb_id, tcb_no * sizeof(struct tcb), &tcb,
 					sizeof(struct tcb));
 			return;
 		}
-	}
-
-	/* TODO: Add SYN-SENT handling */
-
-	if (data_length == 0) {
-		/* Add the two zero case handlings */
-	} else {
-		//if ( tcb->tcp_rcv_wnd
-	}
-	/* TODO: Add window check and deal with out-of order and
-	 lost packages */
-
-	switch (tcb.tcp_state) {
+		break;
 	case TCP_STATE_SYN_SENT:
-		if ((flags & TCP_ACK) && (flags & TCP_SYN)) {
-			tcb.tcp_state = TCP_STATE_ESTABLISHED;
+		if ( flags & TCP_ACK ) {
+			if ( !tcp_in_window(&ackNo, &tcb.tcp_snd_una, &tcb.tcp_snd_nxt) ) {
+				if ( flags & TCP_RST ) {
+					return;
+				}
+				// Just set tcp_snd_nxt in order to have the proper seqNo
+				tcb.tcp_snd_nxt = ackNo;
+				tcp_send_packet(&tcb, TCP_RST);
+				return;
+			}
+		}
+
+		if ( flags & TCP_RST ) {
+			tcb.tcp_state = TCP_STATE_CLOSED;
+			/* Update TCB */
+			mem_write(tcb_id, tcb_no * sizeof(struct tcb), &tcb,
+					sizeof(struct tcb));
+			return;
+		}
+
+		if ( flags & TCP_SYN ) {
 			//tcb.tcp_irs = seqNo;
 			//tcb.tcp_rcv_wnd = RECV_WINDOW;
 			tcb.tcp_rcv_nxt = seqNo + 1;
-			tcp_send_packet(&tcb, TCP_ACK);
-			net_tcp_end_packet(&tcb);
-			//tcb.tcp_snd_nxt--;
+			if ( flags & TCP_ACK ) {
+				tcb.tcp_snd_una = ackNo;
+			}
+
+			if (tcp_compare(&tcb.tcp_snd_una, &tcb.tcp_snd_nxt) > 0) {
+				tcb.tcp_state = TCP_STATE_ESTABLISHED;
+				tcp_send_packet(&tcb, TCP_ACK);
+				net_tcp_end_packet(&tcb);
+			} else {
+				tcb.tcp_state = TCP_STATE_SYN_RECEIVED;
+				tcp_send_packet(&tcb, TCP_ACK|TCP_SYN);
+				net_tcp_end_packet(&tcb);
+			}
+
 			/* Update TCB */
 			mem_write(tcb_id, tcb_no * sizeof(struct tcb), &tcb,
 					sizeof(struct tcb));
@@ -459,7 +491,7 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 			tcb.tcp_snd_una = ackNo;
 			tcb.tcp_rcv_nxt = seqNo + data_length;
 		}
-		/* Echo data back ack'ing things along the way */
+
 		if (data_length > 0) {
 			/* Update TCB */
 			mem_write(tcb_id, tcb_no * sizeof(struct tcb), &tcb,
@@ -595,6 +627,82 @@ void tcp_connect(int socket, uint8_t *local_addr, uint8_t *remote_addr,
 	tcb.tcp_snd_nxt++;
 	mem_write(tcb_id, socket * sizeof(struct tcb), (uint8_t*) &tcb,
 			sizeof(struct tcb));
+}
+
+bool
+tcp_in_window(uint32_t *no, uint32_t *min, uint32_t *max) {
+	// All three arguments overflow after 2**32 - 1
+	// We need to take care of that when comparing.
+
+	// There are two scenarios:
+	// 1. No overflows / min overflows
+	//     0 ---------|-----------------|------ 2**32 -1
+	//               min               max
+	//                 =================
+	//                   valid region
+	//
+	// 2. Max overflows
+	//     0 ---|---------------------------|-- 2**32 -1
+	//         max                         min
+	//       ===                             ==
+	//    valid region 1                  valid region 2
+
+	// Case 1
+	if (*max >= *min ) {
+		if( *no >= *min && *no <= *max) {
+			return true;
+		} else {
+			return false;
+		}
+	}
+
+	// Case 2
+	if (*min > *max) {
+		if( *no < *max || *no > *min ) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+int8_t
+tcp_compare(uint32_t *no1, uint32_t *no2) {
+	// Both no1 and no2 overflow after 2**32 -1
+	// When we compare the two numbers, we assume that 
+	// although an overflow has occoured, the two numbers are no
+	// more than 2**30 from each other
+	// Graphicallly, when no2 > no1 overflows looks like this:
+	// 0 -----|---------------------------|--- 2**32 -1
+	//       no2                         no1
+	// As long as no1 - no2 < 2**30, no2 is largest.
+
+	// Trivial case
+	if(*no1 == *no2) {
+		return 0;
+	}
+
+	uint32_t dist;
+
+	if( *no1 > *no2 ) {
+		dist = *no1 - *no2;
+	} else {
+		dist = *no2 - *no1;
+	}
+
+	if( dist > 0x40000000LL ) {
+		if( *no1 > *no2 ) {
+			return -1;
+		} else {
+			return 1;
+		}
+	} else {
+		if( *no1 > *no2 ) {
+			return 1;
+		} else {
+			return -1;
+		}
+	}
 }
 
 #endif
