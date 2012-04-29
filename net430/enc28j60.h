@@ -11,7 +11,7 @@
 
 /* Pins */
 #define ENC_CS 		BIT0
-#define ENC_INT		BIT4
+#define ENC_INT		BIT3
 
 #define ANY_BANK 4
 #define ENC_BANK(REG) 		REG ## _BANK
