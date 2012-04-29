@@ -16,6 +16,7 @@
 #include "tcp.h"
 
 #include "rfm.h"
+#include "logger_udp.h"
 
 const uint8_t mac_addr[] = { 0xea, 0x75, 0xbf, 0x72, 0x0f, 0x3d };
 
@@ -166,7 +167,12 @@ int main(void) {
 	cpu_init();
 	init_random();
 
+#ifdef UART_ENABLE
 	uart_init();
+
+	// register ISR called when data was received
+	uart_set_rx_isr_ptr(uart_rx_isr);
+#endif
 
 	unsigned char c;
 //	uart_getc(&c);
@@ -180,9 +186,6 @@ int main(void) {
 	P2IFG = 0;
 	P2IE |= BIT1;
 
-	// register ISR called when data was received
-	uart_set_rx_isr_ptr(uart_rx_isr);
-
 	__bis_SR_register(GIE);
 
 	spi_init();
@@ -194,6 +197,10 @@ int main(void) {
 
 	enc_init(mac_addr);
 	net_init(mac_addr);
+
+#ifdef UDP_LOG
+	logger_udp_init();
+#endif
 
 	int client_socket = tcp_socket(client_callback);
 

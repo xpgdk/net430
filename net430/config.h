@@ -10,6 +10,10 @@
 
 #define CPU_FREQ 	8
 #define SPI_SPEED 2000000 // 2MHz
+#define UDP_LOG
+
+#undef UART_LOG
+#undef UART_ENABLE
 
 /* Duration of a single CPU cycle */
 #define FCPU (CPU_FREQ*1000000)

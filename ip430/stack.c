@@ -13,6 +13,7 @@
 #include "udp.h"
 #include "debug.h"
 #include "mem.h"
+#include "logger_udp.h"
 
 struct addr_map_entry {
 	uint8_t mac[6];
@@ -550,6 +551,9 @@ void net_tick(void) {
 		}
 		break;
 	default:
+#ifdef UDP_LOG
+		logger_udp_transmit();
+#endif
 		break;
 	}
 }

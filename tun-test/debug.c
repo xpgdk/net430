@@ -1,6 +1,7 @@
 #include <debug.h>
 #include <stdio.h>
 
+#ifdef STDOUT_LOG
 void debug_out_init(void) {
 }
 
@@ -15,3 +16,4 @@ void debug_puthex(uint16_t value) {
 void debug_nl(void) {
 	printf("\n");
 }
+#endif

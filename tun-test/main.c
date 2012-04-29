@@ -17,6 +17,7 @@
 #include "mem.h"
 #include "tcp.h"
 #include "tun.h"
+#include "logger_udp.h"
 
 int tun_alloc(char *dev, int flags) {
 
@@ -112,6 +113,10 @@ main(int argc, char *argv[]) {
 	uint8_t maca[] = {0xea,0x75,0xbf,0x72,0x0f,0x3d};
 	mem_init();
 	net_init(maca);
+
+#ifdef UDP_LOG
+	logger_udp_init();
+#endif
 
 	deferred_id = mem_alloc(1500);
 

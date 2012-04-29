@@ -19,6 +19,6 @@ struct udp_packet_header {
 void handle_udp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 		uint16_t length, DATA_CB dataCb, void *priv);
 
-void net_udp_send(struct udp_packet_header *hdr, uint8_t *data, uint16_t count);
+void net_udp_send(struct udp_packet_header *hdr, const uint8_t *data, uint16_t count);
 //void net_start_udp_packet(struct ipv6_packet_arg *arg);
 #endif /* UDP_H_ */

@@ -26,7 +26,8 @@
  *
  *****************************************************************************/
 
-#ifndef __UART_H
+#include "config.h"
+#if !defined(__UART_H) && defined(UART_ENABLE)
 #define __UART_H
 
 #include <stdint.h>

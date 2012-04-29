@@ -41,6 +41,7 @@
  */
 #define TXD		BIT2
 
+#ifdef UART_ENABLE
 /**
  * Callback handler for receive
  */
@@ -103,3 +104,4 @@ interrupt(USCIAB0RX_VECTOR) USCI0RX_ISR(void)
 		(uart_rx_isr_ptr)(UCA0RXBUF);
 	}
 }
+#endif
