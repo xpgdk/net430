@@ -26,6 +26,7 @@
 								<option defaultValue="dk.xpg.msp430eclipse.compiler.option.debugging.level.default" id="dk.xpg.msp430eclipse.compiler.option.debugging.level.1474932830" name="Debugging Level" superClass="dk.xpg.msp430eclipse.compiler.option.debugging.level" valueType="enumerated"/>
 								<option id="dk.xpg.msp430eclipse.compiler.option.includes.paths.2114321021" name="Include paths (-I)" superClass="dk.xpg.msp430eclipse.compiler.option.includes.paths" valueType="includePath">
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/net430/ip430}&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/${ProjName}/net430}&quot;"/>
 								</option>
 								<option id="dk.xpg.msp430eclipse.compiler.option.language.standard.950516659" name="Standard" superClass="dk.xpg.msp430eclipse.compiler.option.language.standard" value="dk.xpg.msp430eclipse.compiler.option.language.standard.c99" valueType="enumerated"/>
 								<option id="dk.xpg.msp430eclipse.compiler.option.symbols.defined.1961299050" name="Defined Symbols (-D)" superClass="dk.xpg.msp430eclipse.compiler.option.symbols.defined" valueType="definedSymbols">

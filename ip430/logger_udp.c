@@ -16,7 +16,7 @@
 #include "mem.h"
 
 static struct udp_packet_header log_header;
-#if 0
+#if 1
 const static uint8_t log_dest[] = {0x20, 0x01, 0x16, 0xd8, 0xdd, 0xaa, 0x00, 0x1,
 	0x02, 0x23, 0x54, 0xff, 0xfe, 0xd5, 0x46, 0xf0};
 #else
@@ -28,10 +28,11 @@ static int logger_mem;
 static uint16_t logger_used;
 static bool logger_sending;
 
+const static uint8_t log_dest_mac[] = {0x00,0x23,0x54,0xd5,0x46,0xf0};
 void
 logger_udp_init(void) {
-	net_get_address(ADDRESS_STORE_MAIN_OFFSET, log_src_ip);
-	log_header.ipv6.dst_mac_addr = null_mac;
+//	net_get_address(ADDRESS_STORE_MAIN_OFFSET, log_src_ip);
+	log_header.ipv6.dst_mac_addr = log_dest_mac;
 	log_header.ipv6.dst_ipv6_addr = log_dest;
 	log_header.ipv6.src_ipv6_addr = log_src_ip;
 	log_header.sourcePort = 2000;
@@ -45,7 +46,7 @@ logger_udp_init(void) {
 void
 logger_udp_transmit(void) {
 	net_get_address(ADDRESS_STORE_MAIN_OFFSET, log_src_ip);
-	uint8_t buf[200];
+	uint8_t buf[10];
 	uint16_t offset = 0;
 	logger_sending = true;
 	while( logger_used > 0) {
@@ -73,7 +74,8 @@ debug_puts(const char *str) {
 void
 debug_puthex(uint16_t v) {
 	char buf[10];
-	sprintf(buf, "%X", v);
+	//sprintf(buf, "%X", v);
+	itoa(v, buf, 16);
 	debug_puts(buf);
 }
 

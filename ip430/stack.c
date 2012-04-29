@@ -14,6 +14,7 @@
 #include "debug.h"
 #include "mem.h"
 #include "logger_udp.h"
+#include "config.h"
 
 struct addr_map_entry {
 	uint8_t mac[6];
@@ -130,7 +131,6 @@ bool routing_table_lookup(const uint8_t *destAddr, uint8_t *nextHopMac) {
 #endif
 			found = true;
 		}
-		debug_nl();
 	}
 
 	return found;

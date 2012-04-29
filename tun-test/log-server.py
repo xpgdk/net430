@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import socket
+import sys
 
 # A UDP server
 
@@ -18,4 +19,4 @@ UDPSock.bind(listen_addr)
 # up to the server to sort this out!)
 while True:
         data,addr = UDPSock.recvfrom(1500)
-        print data.strip()
+        sys.stdout.write(data)

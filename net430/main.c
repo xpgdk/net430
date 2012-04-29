@@ -64,7 +64,7 @@ void client_callback(int socket, uint8_t new_state, uint16_t count,
 	}
 }
 
-#if 0
+#if 1
 const static uint8_t dst[] = {0x20, 0x01, 0x16, 0xd8, 0xdd, 0xaa, 0x00, 0x1,
 	0x02, 0x23, 0x54, 0xff, 0xfe, 0xd5, 0x46, 0xf0};
 #else
@@ -177,7 +177,7 @@ int main(void) {
 	unsigned char c;
 //	uart_getc(&c);
 
-	delayMs(500);
+	delayMs(1500);
 
 	P2DIR &= ~BIT1;
 	P2REN |= BIT1;
@@ -288,7 +288,7 @@ PORT1_ISR(void) {
 		enc_handle_int();
 		__bic_SR_register_on_exit(CPUOFF);
 	}
-#endif
+#endif()
 	P1IFG = 0;
 }
 

@@ -82,6 +82,12 @@ void uart_putc(unsigned char c)
   	UCA0TXBUF = c;                    		// TX
 }
 
+void uart_puts(const char *str)
+{
+     while(*str) uart_putc(*str++);
+}
+
+#ifdef UART_LOG
 void debug_puts(const char *str)
 {
      while(*str) uart_putc(*str++);
@@ -96,7 +102,7 @@ void debug_puthex(uint16_t v) {
 void debug_nl() {
 	debug_puts("\n");
 }
-
+#endif
 interrupt(USCIAB0RX_VECTOR) USCI0RX_ISR(void)
 {
 	__bic_SR_register_on_exit(CPUOFF);
