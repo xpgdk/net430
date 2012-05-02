@@ -13,7 +13,7 @@
 #define UDP_LOG
 
 #undef UART_LOG
-#define UART_ENABLE
+#undef UART_ENABLE
 
 /* Duration of a single CPU cycle */
 #define FCPU (CPU_FREQ*1000000)

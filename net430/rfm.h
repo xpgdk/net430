@@ -161,21 +161,21 @@ uint16_t _crc16_update(uint16_t crc, uint8_t a) {
 uint16_t rf12_xfer(uint16_t c) {
 	uint16_t res;
 
-	while (!(UC0IFG & UCB0TXIFG))
+	while (!(UC0IFG & UCA0TXIFG))
 		;
 
 	P2OUT &= ~(SEL);
 
-    UCB0TXBUF = c>>8;
-    while (!(UC0IFG & UCB0RXIFG))
+    UCA0TXBUF = c>>8;
+    while (!(UC0IFG & UCA0RXIFG))
     		;
-    res = UCB0RXBUF<<8;
-    UCB0TXBUF = c;
+    res = UCA0RXBUF<<8;
+    UCA0TXBUF = c;
 
-    while (!(UC0IFG & UCB0RXIFG))
+    while (!(UC0IFG & UCA0RXIFG))
     		;
 
-    res |= UCB0RXBUF;
+    res |= UCA0RXBUF;
 
 	P2OUT |= (SEL);
 
@@ -186,6 +186,19 @@ uint16_t rf12_xfer(uint16_t c) {
 // assuming 1Mhz DCO
 void rf12_port_init(void) {
 	P2DIR |= SEL;
+
+	UCA0CTL1 = UCSWRST;
+	UCA0CTL0 = UCCKPH | UCMSB | UCMST | UCMODE_0 | UCSYNC;
+	UCA0CTL1 |= UCSSEL_2;
+
+	UCA0BR0 = (SPI_DIV & 0xFF);
+	UCA0BR1 = (SPI_DIV >> 8) & 0xFF;
+
+	P1SEL |= BIT1 | BIT2 | BIT4;
+	P1SEL2 |= BIT1 | BIT2 | BIT4;
+
+	UCA0CTL1 &= ~UCSWRST;
+
 #if 0
     P1DIR |= SCK | SDO | SEL;
     P1DIR &= ~SDI;
