@@ -519,6 +519,7 @@ void net_tick(void) {
 
 #ifdef HAVE_TCP
 	tcp_initialSeqNo++;
+	tcp_timeout(net_get_time());
 #endif
 
 	switch (net_state) {

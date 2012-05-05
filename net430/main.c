@@ -24,6 +24,9 @@ static unsigned char gotChar = 0;
 static bool gotData = false;
 static bool closed = false;
 static bool sendRequest = false;
+uint16_t	timeValue = 0;
+
+#define TIME_STEP	30 //seconds
 
 void uart_rx_isr(unsigned char c) {
 	gotChar = c;
@@ -132,12 +135,6 @@ void tcp_send_template_data(const char *buf, uint16_t count) {
 			p = end;
 		}
 
-		// Workaround checksum bug
-		/*if (((p-buf) % 2) != 0) {
-			debug_puts("checksum bug");
-			debug_nl();
-			p++;
-		}*/
 		tcp_send_data(buf, p - buf);
 		buf = p;
 
@@ -162,10 +159,26 @@ void tcp_send_template_data(const char *buf, uint16_t count) {
 	debug_puts("Done");
 	debug_nl();
 }
-
+uint16_t net_get_time(void) {
+	return timeValue;
+}
 int main(void) {
 	cpu_init();
 	init_random();
+
+	/* Select low-frequency mode */
+	BCSCTL1 &= ~XTS;
+	/* Set ACLK divider to 1 */
+	BCSCTL1 |= DIVA_0;
+
+	/* Select VLOCLK */
+    BCSCTL3 &= ~(LFXT1S0 | LFXT1S1);
+    BCSCTL3 |= LFXT1S_2;
+
+	/* Initialize timer A0 */
+    TA0CCTL0 = CM_0 | CCIE;
+	TA0CTL = TASSEL_1 | ID_3 | MC_1| TACLR;
+	TA0CCR0 = (1500*TIME_STEP);
 
 #ifdef UART_ENABLE
 	uart_init();
@@ -279,6 +292,12 @@ int main(void) {
 			__bis_SR_register(CPUOFF | GIE);
 		}
 	}
+}
+
+void __attribute__((interrupt TIMER0_A0_VECTOR))
+TIMER0_A0_ISR(void) {
+	__bic_SR_register_on_exit(CPUOFF);
+	timeValue += TIME_STEP;
 }
 
 void __attribute__((interrupt PORT1_VECTOR))

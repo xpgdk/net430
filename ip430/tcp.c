@@ -91,6 +91,95 @@ void tcp_send_packet(struct tcb *tcb, uint16_t flags) {
 	//printf("Next sequence number: %d\n", tcb->tcp_snd_nxt);
 }
 
+/*
+ * Due to overflow, we can only reliable compare timestamps
+ * 5 hours appart
+ * */
+int
+tcp_compare_time(uint16_t t1, uint16_t t2) {
+	uint16_t diff = t1 > t2 ? t1-t2 : t2-t1;
+
+	debug_puts("tcp_compare_time(");
+	debug_puthex(t1);
+	debug_puts(",");
+	debug_puthex(t2);
+	debug_puts(")");
+	debug_nl();
+
+	debug_puts("diff = ");
+	debug_puthex(diff);
+	debug_nl();
+	if( diff == 0) {
+		return 0;
+	}
+
+	if( diff > 18000 ) {
+		/* Assume that one of the values has wrapped, meaning that the
+		 * smallest one is actually the largest */
+		if( t1 > t2 ) {
+			return -1;
+		} else {
+			return 1;
+		}
+	} else {
+		/* Assume that no wrapping has occured */
+		if( t1 > t2 ) {
+			return 1;
+		} else {
+			return -1;
+		}
+	}
+}
+
+void
+tcp_timeout(uint16_t timeValue) {
+	/* Do any time-related tasks.
+	 * Overflows must be taken into account. */
+
+	/* First check for inactive TCBs */
+	struct tcb tcb;
+	for (int i = 0; i < TCB_COUNT; i++) {
+
+		debug_puts("TCB ");
+		debug_puthex(i);
+		debug_puts(": ");
+
+		mem_read(tcb_id, i * sizeof(struct tcb), &tcb, sizeof(struct tcb));
+		debug_puthex(tcb.tcp_state);
+		debug_nl();
+		switch(tcb.tcp_state) {
+		case TCP_STATE_ESTABLISHED:
+			debug_puts("Doing TCP timeout check");
+			debug_nl();
+			if(tcp_compare_time(timeValue, tcb.tcp_timeout) > 0) {
+				/* Send keep-alive */
+				debug_puts("Sending TCP keep-alive");
+				debug_nl();
+				tcp_send_packet(&tcb, TCP_ACK);
+
+				net_tcp_end_packet(&tcb);
+
+				mem_write(tcb_id, i* sizeof(struct tcb), (uint8_t*) &tcb,
+						sizeof(struct tcb));
+			}
+			break;
+		case TCP_STATE_TIME_WAIT:
+			debug_puts("Doing STATE-TIME-WAIT timeout check");
+			debug_nl();
+			if(tcp_compare_time(timeValue, tcb.tcp_timeout) >= 0) {
+				debug_puts("Moving to closed state");
+				debug_nl();
+				tcb.tcp_state = TCP_STATE_CLOSED;
+				mem_write(tcb_id, i* sizeof(struct tcb), (uint8_t*) &tcb,
+						sizeof(struct tcb));
+				tcb.callback(i, tcb.tcp_state, 0, NULL, NULL);
+			}
+			break;
+		}
+	}
+
+}
+
 void net_tcp_end_packet(struct tcb *tcb) {
 	uint16_t length = net_get_length()
 			- (SIZE_ETHERNET_HEADER + SIZE_IPV6_HEADER + SIZE_TCP_HEADER);
@@ -284,7 +373,8 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 		debug_puts("TCB Closed");
 		debug_nl();
 #endif
-		/* CLOSED state handling according to STD7 p. 65 */
+		/* CLOSED state handling according
+		debug_puts("") to STD7 p. 65 */
 		struct tcb ttcb;
 		uint16_t rflags = TCP_RST;
 
@@ -310,13 +400,40 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 		return;
 	}
 
-	if (data_length == 0) {
-		/* Add the two zero case handlings */
-	} else {
-		//if ( tcb->tcp_rcv_wnd
-	}
 	/* TODO: Add window check and deal with out-of order and
 	 lost packages */
+
+	if( tcb.tcp_state == TCP_STATE_SYN_RECEIVED ||
+			tcb.tcp_state == TCP_STATE_ESTABLISHED ||
+			tcb.tcp_state == TCP_STATE_FIN_WAIT_1 ||
+			tcb.tcp_state == TCP_STATE_FIN_WAIT_2 ||
+			tcb.tcp_state == TCP_STATE_TIME_WAIT) {
+		bool ok = false;
+		if (data_length == 0) {
+			if( seqNo == tcb.tcp_rcv_nxt )
+				ok = true;
+		} else {
+			uint32_t ma = tcb.tcp_rcv_nxt + RECV_WINDOW-1;
+			uint32_t s = seqNo + data_length-1;
+			if ( tcp_in_window(&seqNo, &tcb.tcp_rcv_nxt, &ma) ) {
+				ok = true;
+			} else if(tcp_in_window(&s, &s, &ma)) {
+				ok = true;
+			}
+		}
+
+		if( !ok ) {
+			debug_puts("Segment check failed");
+			debug_nl();
+			if( flags & TCP_RST) {
+				return;
+			} else {
+				tcp_send_packet(&tcb, TCP_ACK);
+				net_tcp_end_packet(&tcb);
+			}
+			return;
+		}
+	}
 
 	switch (tcb.tcp_state) {
 	case TCP_STATE_LISTEN:
@@ -368,7 +485,7 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 				if ( flags & TCP_RST ) {
 					return;
 				}
-				// Just set tcp_snd_nxt in order to have the proper seqNo
+				// Just set tcp_snd_nxt in order to havTIME_WAITe the proper seqNo
 				tcb.tcp_snd_nxt = ackNo;
 				tcp_send_packet(&tcb, TCP_RST);
 				return;
@@ -419,6 +536,7 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 			tcb.callback(tcb_no, tcb.tcp_state, 0, NULL, NULL);
 		} else 	if (flags & TCP_ACK) {
 			tcb.tcp_state = TCP_STATE_TIME_WAIT;
+			tcb.tcp_timeout = net_get_time() + 30; // Should be 4 minutes = (2 MSL)
 			/* Update TCB */
 			mem_write(tcb_id, tcb_no * sizeof(struct tcb), &tcb,
 					sizeof(struct tcb));
@@ -491,6 +609,10 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 			tcb.tcp_snd_una = ackNo;
 			tcb.tcp_rcv_nxt = seqNo + data_length;
 		}
+
+		// We expect data at least every 30s
+		// We will send keep-alives if we don't get them
+		tcb.tcp_timeout = net_get_time() + 30;
 
 		if (data_length > 0) {
 			/* Update TCB */

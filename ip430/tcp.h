@@ -20,7 +20,7 @@
 #define TCP_STATE_LAST_ACK			7
 #define TCP_STATE_FIN_WAIT_1		8
 #define TCP_STATE_FIN_WAIT_2		9
-#define	TCP_STATE_TIME_WAIT			10
+#define	 TCP_STATE_TIME_WAIT		10
 
 typedef void (*tcp_callback)(int,  uint8_t, uint16_t, DATA_CB , void *);
 
@@ -40,6 +40,8 @@ struct tcb {
 	//uint32_t tcp_irs;
 	uint8_t	tcp_state;
 
+	uint16_t	tcp_timeout;
+
 	tcp_callback	callback;
 };
 
@@ -52,6 +54,7 @@ void tcp_send_packet(struct tcb *tcb, uint16_t flags);
 void net_tcp_end_packet(struct tcb *tcb);
 bool tcp_in_window(uint32_t *no, uint32_t *min, uint32_t *max);
 int8_t tcp_compare(uint32_t *no1, uint32_t *no2);
+void tcp_timeout(uint16_t timeValue);
 
 /* TCP API */
 int tcp_socket(tcp_callback callback);
