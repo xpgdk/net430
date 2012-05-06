@@ -14,7 +14,6 @@
 static uint16_t tcb_id;
 uint32_t tcp_initialSeqNo;
 
-
 /**
  TODO: Add retransmission queue and a timer tick to retransmit packages.
  We won't be keeping received packets, as we require them to be in-order
@@ -95,35 +94,24 @@ void tcp_send_packet(struct tcb *tcb, uint16_t flags) {
  * Due to overflow, we can only reliable compare timestamps
  * 5 hours appart
  * */
-int
-tcp_compare_time(uint16_t t1, uint16_t t2) {
-	uint16_t diff = t1 > t2 ? t1-t2 : t2-t1;
+int tcp_compare_time(uint16_t t1, uint16_t t2) {
+	uint16_t diff = t1 > t2 ? t1 - t2 : t2 - t1;
 
-	debug_puts("tcp_compare_time(");
-	debug_puthex(t1);
-	debug_puts(",");
-	debug_puthex(t2);
-	debug_puts(")");
-	debug_nl();
-
-	debug_puts("diff = ");
-	debug_puthex(diff);
-	debug_nl();
-	if( diff == 0) {
+	if (diff == 0) {
 		return 0;
 	}
 
-	if( diff > 18000 ) {
+	if (diff > 18000) {
 		/* Assume that one of the values has wrapped, meaning that the
 		 * smallest one is actually the largest */
-		if( t1 > t2 ) {
+		if (t1 > t2) {
 			return -1;
 		} else {
 			return 1;
 		}
 	} else {
 		/* Assume that no wrapping has occured */
-		if( t1 > t2 ) {
+		if (t1 > t2) {
 			return 1;
 		} else {
 			return -1;
@@ -131,27 +119,23 @@ tcp_compare_time(uint16_t t1, uint16_t t2) {
 	}
 }
 
-void
-tcp_timeout(uint16_t timeValue) {
-	/* Do any time-related tasks.
-	 * Overflows must be taken into account. */
-
-	/* First check for inactive TCBs */
+void tcp_timeout(uint16_t timeValue) {
 	struct tcb tcb;
 	for (int i = 0; i < TCB_COUNT; i++) {
 
+#if 0
 		debug_puts("TCB ");
 		debug_puthex(i);
 		debug_puts(": ");
-
+#endif
 		mem_read(tcb_id, i * sizeof(struct tcb), &tcb, sizeof(struct tcb));
+#if 0
 		debug_puthex(tcb.tcp_state);
 		debug_nl();
-		switch(tcb.tcp_state) {
+#endif
+		switch (tcb.tcp_state) {
 		case TCP_STATE_ESTABLISHED:
-			debug_puts("Doing TCP timeout check");
-			debug_nl();
-			if(tcp_compare_time(timeValue, tcb.tcp_timeout) > 0) {
+			if (tcp_compare_time(timeValue, tcb.tcp_timeout) > 0) {
 				/* Send keep-alive */
 				debug_puts("Sending TCP keep-alive");
 				debug_nl();
@@ -159,18 +143,26 @@ tcp_timeout(uint16_t timeValue) {
 
 				net_tcp_end_packet(&tcb);
 
-				mem_write(tcb_id, i* sizeof(struct tcb), (uint8_t*) &tcb,
+				mem_write(tcb_id, i * sizeof(struct tcb), (uint8_t*) &tcb,
 						sizeof(struct tcb));
 			}
 			break;
 		case TCP_STATE_TIME_WAIT:
-			debug_puts("Doing STATE-TIME-WAIT timeout check");
-			debug_nl();
-			if(tcp_compare_time(timeValue, tcb.tcp_timeout) >= 0) {
+			if (tcp_compare_time(timeValue, tcb.tcp_timeout) >= 0) {
 				debug_puts("Moving to closed state");
 				debug_nl();
 				tcb.tcp_state = TCP_STATE_CLOSED;
-				mem_write(tcb_id, i* sizeof(struct tcb), (uint8_t*) &tcb,
+				mem_write(tcb_id, i * sizeof(struct tcb), (uint8_t*) &tcb,
+						sizeof(struct tcb));
+				tcb.callback(i, tcb.tcp_state, 0, NULL, NULL);
+			}
+			break;
+		case TCP_STATE_SYN_RECEIVED:
+			if (tcp_compare_time(timeValue, tcb.tcp_timeout) >= 0) {
+				debug_puts("Moving to closed state");
+				debug_nl();
+				tcb.tcp_state = TCP_STATE_CLOSED;
+				mem_write(tcb_id, i * sizeof(struct tcb), (uint8_t*) &tcb,
 						sizeof(struct tcb));
 				tcb.callback(i, tcb.tcp_state, 0, NULL, NULL);
 			}
@@ -194,7 +186,7 @@ void net_tcp_end_packet(struct tcb *tcb) {
 }
 
 void tcp_init(void) {
-	tcp_initialSeqNo = rand() + (rand() << 16);
+	tcp_initialSeqNo = rand() + ((uint32_t) rand() << 16);
 
 	debug_puts("Initial sequence number: ");
 	debug_puthex(tcp_initialSeqNo >> 16);
@@ -247,10 +239,12 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 	uint8_t flags = buf[1];
 
 	dataCb(buf, 2, priv);
-	uint16_t window = CONV_16(buf);
+	//uint16_t window = CONV_16(buf);
 
 	dataCb(buf, 2, priv);
 	//uint16_t cs = CONV_16(buf);
+
+	uint32_t data_length = length - (dataOffset * 4);
 
 #ifdef DEBUG_TCP
 	debug_puts("Source port: ");
@@ -258,6 +252,9 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 	debug_nl();
 	debug_puts("Dest   port: ");
 	debug_puthex(destPort);
+	debug_nl();
+	debug_puts("Length: ");
+	debug_puthex(data_length);
 	debug_nl();
 	debug_puts("SeqNo: ");
 	debug_puthex(seqNo >> 16);
@@ -326,39 +323,10 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 		}
 	}
 
-	if( tcb_no == 0xFFFF ) {
-		debug_puts("No TCB found, ignoring packet");
-		debug_nl();
-		debug_puts("Source port: ");
-		debug_puthex(sourcePort);
-		debug_nl();
-		debug_puts("Dest   port: ");
-		debug_puthex(destPort);
-		debug_nl();
-		debug_puts("SeqNo: ");
-		debug_puthex(seqNo >> 16);
-		debug_puthex(seqNo & 0xFFFF);
-		debug_nl();
-		debug_puts("Flags: ");
-		if (flags & TCP_FIN) {
-			debug_puts("FIN, ");
-		}
-		if (flags & TCP_SYN) {
-			debug_puts("SYN, ");
-		}
-		if (flags & TCP_RST) {
-			debug_puts("RST, ");
-		}
-		if (flags & TCP_ACK) {
-			debug_puts("ACK, ");
-		}
-		debug_nl();
-
+	if (tcb_no == 0xFFFF) {
 		// Ensure that we handle it as a TCB in CLOSED state
 		tcb.tcp_state = TCP_STATE_NONE;
 	}
-
-	uint32_t data_length = length - (dataOffset * 4);
 
 	CHECK_SP("handle_tcp, middle: ");
 
@@ -374,7 +342,7 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 		debug_nl();
 #endif
 		/* CLOSED state handling according
-		debug_puts("") to STD7 p. 65 */
+		 debug_puts("") to STD7 p. 65 */
 		struct tcb ttcb;
 		uint16_t rflags = TCP_RST;
 
@@ -400,38 +368,71 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 		return;
 	}
 
-	/* TODO: Add window check and deal with out-of order and
-	 lost packages */
-
-	if( tcb.tcp_state == TCP_STATE_SYN_RECEIVED ||
-			tcb.tcp_state == TCP_STATE_ESTABLISHED ||
-			tcb.tcp_state == TCP_STATE_FIN_WAIT_1 ||
-			tcb.tcp_state == TCP_STATE_FIN_WAIT_2 ||
-			tcb.tcp_state == TCP_STATE_TIME_WAIT) {
+	if (tcb.tcp_state == TCP_STATE_SYN_RECEIVED
+			|| tcb.tcp_state == TCP_STATE_ESTABLISHED
+			|| tcb.tcp_state == TCP_STATE_FIN_WAIT_1
+			|| tcb.tcp_state == TCP_STATE_FIN_WAIT_2
+			|| tcb.tcp_state == TCP_STATE_TIME_WAIT) {
 		bool ok = false;
-		if (data_length == 0) {
-			if( seqNo == tcb.tcp_rcv_nxt )
+		if (data_length == 0 && RECV_WINDOW == 0) {
+			if (seqNo == tcb.tcp_rcv_nxt)
 				ok = true;
 		} else {
-			uint32_t ma = tcb.tcp_rcv_nxt + RECV_WINDOW-1;
-			uint32_t s = seqNo + data_length-1;
-			if ( tcp_in_window(&seqNo, &tcb.tcp_rcv_nxt, &ma) ) {
+			/* The correct way of doing this is the code below: */
+//			uint32_t ma = tcb.tcp_rcv_nxt + RECV_WINDOW - 1;
+//			uint32_t s = seqNo + data_length - 1;
+//			if (tcp_in_window(&seqNo, &tcb.tcp_rcv_nxt, &ma)) {
+//				ok = true;
+//			} else if (tcp_in_window(&seqNo, &s, &ma)) {
+//				ok = true;
+//			}
+			/* However, we do not really want to deal with reordering of
+			 * data (as we deliver it as soon as we receive it).
+			 * Therefore, the above code is simplified to the follow check, which
+			 * works but will result in more data being retransmitted when packets
+			 * are reordered. */
+			if( seqNo == tcb.tcp_rcv_nxt)
 				ok = true;
-			} else if(tcp_in_window(&s, &s, &ma)) {
-				ok = true;
-			}
 		}
 
-		if( !ok ) {
-			debug_puts("Segment check failed");
+		if (!ok) {
+			debug_puts("Segment check failed:");
 			debug_nl();
-			if( flags & TCP_RST) {
+			debug_puts("Seq. no: ");
+			debug_puthex((seqNo >> 16) & 0xFFFF);
+			debug_puthex(seqNo & 0xFFFF);
+			debug_nl();
+			debug_puts("RCV_NXT: ");
+			debug_puthex((tcb.tcp_rcv_nxt >> 16) & 0xFFFF);
+			debug_puthex(tcb.tcp_rcv_nxt & 0xFFFF);
+			debug_nl();
+			debug_puts("data_length: ");
+			debug_puthex(data_length);
+			debug_nl();
+			if (flags & TCP_RST) {
 				return;
 			} else {
 				tcp_send_packet(&tcb, TCP_ACK);
 				net_tcp_end_packet(&tcb);
 			}
 			return;
+		} else {
+			if (seqNo != tcb.tcp_rcv_nxt) {
+				debug_puts("State: ");
+				debug_puthex(tcb.tcp_state);
+				debug_nl();
+				debug_puts("data_length: ");
+				debug_puthex(data_length);
+				debug_nl();
+				debug_puts("Seq. no: ");
+				debug_puthex((seqNo >> 16) & 0xFFFF);
+				debug_puthex(seqNo & 0xFFFF);
+				debug_nl();
+				debug_puts("RCV_NXT: ");
+				debug_puthex((tcb.tcp_rcv_nxt >> 16) & 0xFFFF);
+				debug_puthex(tcb.tcp_rcv_nxt & 0xFFFF);
+				debug_nl();
+			}
 		}
 	}
 
@@ -456,6 +457,7 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 		if (flags & TCP_SYN) {
 			memcpy(tcb.local_addr, destIPAddr, 16);
 			memcpy(tcb.remote_addr, sourceAddr, 16);
+			tcb.tcp_timeout = net_get_time() + 2 * TCP_MSL;
 			tcb.tcp_state = TCP_STATE_SYN_RECEIVED;
 			tcb.tcp_remote_port = sourcePort;
 
@@ -480,9 +482,9 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 		}
 		break;
 	case TCP_STATE_SYN_SENT:
-		if ( flags & TCP_ACK ) {
-			if ( !tcp_in_window(&ackNo, &tcb.tcp_snd_una, &tcb.tcp_snd_nxt) ) {
-				if ( flags & TCP_RST ) {
+		if (flags & TCP_ACK) {
+			if (!tcp_in_window(&ackNo, &tcb.tcp_snd_una, &tcb.tcp_snd_nxt)) {
+				if (flags & TCP_RST) {
 					return;
 				}
 				// Just set tcp_snd_nxt in order to havTIME_WAITe the proper seqNo
@@ -492,7 +494,7 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 			}
 		}
 
-		if ( flags & TCP_RST ) {
+		if (flags & TCP_RST) {
 			tcb.tcp_state = TCP_STATE_CLOSED;
 			/* Update TCB */
 			mem_write(tcb_id, tcb_no * sizeof(struct tcb), &tcb,
@@ -500,11 +502,11 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 			return;
 		}
 
-		if ( flags & TCP_SYN ) {
+		if (flags & TCP_SYN) {
 			//tcb.tcp_irs = seqNo;
 			//tcb.tcp_rcv_wnd = RECV_WINDOW;
 			tcb.tcp_rcv_nxt = seqNo + 1;
-			if ( flags & TCP_ACK ) {
+			if (flags & TCP_ACK) {
 				tcb.tcp_snd_una = ackNo;
 			}
 
@@ -513,8 +515,9 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 				tcp_send_packet(&tcb, TCP_ACK);
 				net_tcp_end_packet(&tcb);
 			} else {
+				tcb.tcp_timeout = net_get_time() + 2 * TCP_MSL;
 				tcb.tcp_state = TCP_STATE_SYN_RECEIVED;
-				tcp_send_packet(&tcb, TCP_ACK|TCP_SYN);
+				tcp_send_packet(&tcb, TCP_ACK | TCP_SYN);
 				net_tcp_end_packet(&tcb);
 			}
 
@@ -534,8 +537,9 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 			mem_write(tcb_id, tcb_no * sizeof(struct tcb), &tcb,
 					sizeof(struct tcb));
 			tcb.callback(tcb_no, tcb.tcp_state, 0, NULL, NULL);
-		} else 	if (flags & TCP_ACK) {
+		} else if (flags & TCP_ACK) {
 			tcb.tcp_state = TCP_STATE_TIME_WAIT;
+			tcb.tcp_rcv_nxt = seqNo + data_length;
 			tcb.tcp_timeout = net_get_time() + 30; // Should be 4 minutes = (2 MSL)
 			/* Update TCB */
 			mem_write(tcb_id, tcb_no * sizeof(struct tcb), &tcb,
@@ -579,14 +583,12 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 					sizeof(struct tcb));
 		}
 		break;
-
 	case TCP_STATE_CLOSE_WAIT:
 	case TCP_STATE_ESTABLISHED:
 		if (flags & TCP_FIN) {
 			tcb.tcp_rcv_nxt = seqNo + 1;
 			tcp_send_packet(&tcb, TCP_ACK);
 			net_tcp_end_packet(&tcb);
-			//tcb.tcp_snd_nxt--;
 
 			tcp_send_packet(&tcb, TCP_ACK | TCP_FIN);
 			net_tcp_end_packet(&tcb);
@@ -598,7 +600,6 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 			return;
 		}
 		if (flags & TCP_RST) {
-			/* TODO: Add proper RST handling */
 			tcb.tcp_state = TCP_STATE_LISTEN;
 			/* Update TCB */
 			mem_write(tcb_id, tcb_no * sizeof(struct tcb), &tcb,
@@ -607,8 +608,9 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 		}
 		if (flags & TCP_ACK) {
 			tcb.tcp_snd_una = ackNo;
-			tcb.tcp_rcv_nxt = seqNo + data_length;
 		}
+
+		tcb.tcp_rcv_nxt = seqNo + data_length;
 
 		// We expect data at least every 30s
 		// We will send keep-alives if we don't get them
@@ -751,8 +753,7 @@ void tcp_connect(int socket, uint8_t *local_addr, uint8_t *remote_addr,
 			sizeof(struct tcb));
 }
 
-bool
-tcp_in_window(uint32_t *no, uint32_t *min, uint32_t *max) {
+bool tcp_in_window(uint32_t *no, uint32_t *min, uint32_t *max) {
 	// All three arguments overflow after 2**32 - 1
 	// We need to take care of that when comparing.
 
@@ -770,8 +771,8 @@ tcp_in_window(uint32_t *no, uint32_t *min, uint32_t *max) {
 	//    valid region 1                  valid region 2
 
 	// Case 1
-	if (*max >= *min ) {
-		if( *no >= *min && *no <= *max) {
+	if (*max >= *min) {
+		if (*no >= *min && *no <= *max) {
 			return true;
 		} else {
 			return false;
@@ -780,7 +781,7 @@ tcp_in_window(uint32_t *no, uint32_t *min, uint32_t *max) {
 
 	// Case 2
 	if (*min > *max) {
-		if( *no < *max || *no > *min ) {
+		if (*no < *max || *no > *min) {
 			return true;
 		}
 	}
@@ -788,8 +789,7 @@ tcp_in_window(uint32_t *no, uint32_t *min, uint32_t *max) {
 	return false;
 }
 
-int8_t
-tcp_compare(uint32_t *no1, uint32_t *no2) {
+int8_t tcp_compare(uint32_t *no1, uint32_t *no2) {
 	// Both no1 and no2 overflow after 2**32 -1
 	// When we compare the two numbers, we assume that 
 	// although an overflow has occoured, the two numbers are no
@@ -800,26 +800,26 @@ tcp_compare(uint32_t *no1, uint32_t *no2) {
 	// As long as no1 - no2 < 2**30, no2 is largest.
 
 	// Trivial case
-	if(*no1 == *no2) {
+	if (*no1 == *no2) {
 		return 0;
 	}
 
 	uint32_t dist;
 
-	if( *no1 > *no2 ) {
+	if (*no1 > *no2) {
 		dist = *no1 - *no2;
 	} else {
 		dist = *no2 - *no1;
 	}
 
-	if( dist > 0x40000000LL ) {
-		if( *no1 > *no2 ) {
+	if (dist > 0x40000000LL) {
+		if (*no1 > *no2) {
 			return -1;
 		} else {
 			return 1;
 		}
 	} else {
-		if( *no1 > *no2 ) {
+		if (*no1 > *no2) {
 			return 1;
 		} else {
 			return -1;

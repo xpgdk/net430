@@ -22,6 +22,8 @@
 #define TCP_STATE_FIN_WAIT_2		9
 #define	 TCP_STATE_TIME_WAIT		10
 
+#define TCP_MSL						2*60 // 2 minutes
+
 typedef void (*tcp_callback)(int,  uint8_t, uint16_t, DATA_CB , void *);
 
 struct tcb {

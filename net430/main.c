@@ -262,8 +262,6 @@ int main(void) {
 			tcp_send_data(httpResponseHeaderPart2, sizeof(httpResponseHeaderPart2)-1);
 #endif
 			tcp_send_end(server_sock);
-
-			PRINT_SP("Before tcp_close call: ");
 			tcp_close(server_sock);
 			gotData = false;
 		}

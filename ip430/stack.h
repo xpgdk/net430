@@ -6,7 +6,7 @@
 #include "debug.h"
 
 #undef DEBUG_IPV6
-#define DEBUG_ICMP
+#undef DEBUG_ICMP
 #undef VALIDATE_STACK
 #undef DBEUG_STACK
 #undef DEBUG_TCP
