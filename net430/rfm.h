@@ -71,7 +71,7 @@ uint16_t rf12_control(uint16_t cmd);
 
 //#define RF12_MAXDATA    66
 // limit to 32 bytes packet
-#define RF12_MAXDATA    5
+#define RF12_MAXDATA    33
 
 #define RF12_433MHZ     1
 #define RF12_868MHZ     2
@@ -159,10 +159,25 @@ uint16_t _crc16_update(uint16_t crc, uint8_t a) {
 
 //______________________________________________________________________
 uint16_t rf12_xfer(uint16_t c) {
+#if 0
+	uint16_t res;
+	P2OUT &= ~(SEL);
+
+    UCB0TXBUF = c>>8;
+    while ((UCB0STAT & UCBUSY) == 0x01);
+    res = UCB0RXBUF<<8;
+    while ((UCB0STAT & UCBUSY) == 0x01);
+    UCB0TXBUF = c;
+    while ((UCB0STAT & UCBUSY) == 0x01);
+    res |= UCB0RXBUF;
+
+	P2OUT |= (SEL);
+    return res;
+#else
 	uint16_t res;
 
-	while (!(UC0IFG & UCA0TXIFG))
-		;
+	/*while (!(UC0IFG & UCA0TXIFG))
+		;*/
 
 	P2OUT &= ~(SEL);
 
@@ -180,6 +195,7 @@ uint16_t rf12_xfer(uint16_t c) {
 	P2OUT |= (SEL);
 
     return res;
+#endif
 }
 
 //______________________________________________________________________
