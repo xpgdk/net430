@@ -10,7 +10,7 @@
 
 #define CPU_FREQ 	8
 #define SPI_SPEED 8000000 // 8MHz
-#define RF12_SPI_SPEED 2000000 // 2MHz
+#define RF12_SPI_SPEED 1000000 // 1MHz
 #define UDP_LOG
 
 #undef UART_LOG
