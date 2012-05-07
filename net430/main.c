@@ -24,10 +24,9 @@ static unsigned char gotChar = 0;
 static bool gotData = false;
 static bool closed = false;
 static bool sendRequest = false;
-uint16_t	timeValue = 0;
+uint16_t timeValue = 0;
 
 #define TIME_STEP	30 //seconds
-
 void uart_rx_isr(unsigned char c) {
 	gotChar = c;
 }
@@ -89,7 +88,7 @@ const static char httpResponseHeader[] = "HTTP/1.1 200 OK\r\n"
 
 const static char httpRequest[] = "GET /post-notify.php HTTP/1.0\r\n"
 		"Host: script.xpg.dk\r\n\r\n";
-		//"Host: localhost\r\n\r\n";
+//"Host: localhost\r\n\r\n";
 
 static bool sendSignal = false;
 
@@ -138,17 +137,17 @@ void tcp_send_template_data(const char *buf, uint16_t count) {
 		tcp_send_data(buf, p - buf);
 		buf = p;
 
-		if( p != end) {
+		if (p != end) {
 			buf++;
 			// Perform replacement
 			const char *e = strchr(buf, '$');
-			if( e == NULL) {
+			if (e == NULL) {
 				e = end;
 			} else {
 				// Match is between buf and e
-				if( strncmp(buf, "USAGE_COUNTER", 13) == 0) {
+				if (strncmp(buf, "USAGE_COUNTER", 13) == 0) {
 					tcp_send_int(requestCounter);
-				} else if( strncmp(buf, "REQUEST_COUNTER", 15) == 0) {
+				} else if (strncmp(buf, "REQUEST_COUNTER", 15) == 0) {
 					tcp_send_int(notificationCounter);
 				}
 				e++;
@@ -172,13 +171,13 @@ int main(void) {
 	BCSCTL1 |= DIVA_0;
 
 	/* Select VLOCLK */
-    BCSCTL3 &= ~(LFXT1S0 | LFXT1S1);
-    BCSCTL3 |= LFXT1S_2;
+	BCSCTL3 &= ~(LFXT1S0 | LFXT1S1);
+	BCSCTL3 |= LFXT1S_2;
 
 	/* Initialize timer A0 */
-    TA0CCTL0 = CM_0 | CCIE;
-	TA0CTL = TASSEL_1 | ID_3 | MC_1| TACLR;
-	TA0CCR0 = (1500*TIME_STEP);
+	TA0CCTL0 = CM_0 | CCIE;
+	TA0CTL = TASSEL_1 | ID_3 | MC_1 | TACLR;
+	TA0CCR0 = (1500 * TIME_STEP);
 
 #ifdef UART_ENABLE
 	uart_init();
@@ -204,7 +203,7 @@ int main(void) {
 	spi_init();
 
 	/* Initialize RFM-module */
-	rf12_initialize(2, RF12_433MHZ, 33);
+	rf12_initialize(3, RF12_433MHZ, 33);
 
 	spi_mem_init();
 
@@ -225,17 +224,6 @@ int main(void) {
 	debug_nl();
 
 	while (true) {
-		if (rf12_recvDone() && rf12_crc == 0) {
-			debug_puts("Got RF12 packet: ");
-			debug_puthex(rf12_data[0]);
-			debug_nl();
-			if (rf12_data[0] == PACKET_SIGNAL) {
-				debug_puts("Got RF12 BAT LEVEL: ");
-				debug_puts(rf12_data + 1);
-				debug_nl();
-				sendSignal = true;
-			}
-		}
 
 		if (gotChar) {
 			gotChar = 0;
@@ -286,6 +274,20 @@ int main(void) {
 			sendSignal = false;
 		}
 
+		if (rf12_recvDone()) {
+			if (rf12_crc == 0) {
+				debug_puts("Got RF12 packet: ");
+				debug_puthex(rf12_data[0]);
+				debug_nl();
+				if (rf12_data[0] == PACKET_SIGNAL) {
+					debug_puts("BAT LEVEL: ");
+					debug_puts(rf12_data + 1);
+					debug_nl();
+					sendSignal = true;
+				}
+			}
+		}
+
 		if (enc_idle && !gotChar && rxstate == TXRECV) {
 			__bis_SR_register(CPUOFF | GIE);
 		}
@@ -300,25 +302,23 @@ TIMER0_A0_ISR(void) {
 
 void __attribute__((interrupt PORT1_VECTOR))
 PORT1_ISR(void) {
-#if 1
 	if (P1IFG & ENC_INT) {
 		enc_handle_int();
 		__bic_SR_register_on_exit(CPUOFF);
 	}
-#endif()
 	P1IFG = 0;
 }
 
 void __attribute__((interrupt PORT2_VECTOR))
 PORT2_ISR(void) {
+	if (P2IFG & BIT5) {
+		//__bic_SR_register_on_exit(CPUOFF);
+		rf12_interrupt();
+	}
 	if (P2IFG & BIT1) {
 		sendSignal = true;
 		P2IE &= ~BIT1;
 		__bic_SR_register_on_exit(CPUOFF);
-	}
-	if (P2IFG & BIT5) {
-		__bic_SR_register_on_exit(CPUOFF);
-		rf12_interrupt();
 	}
 	P2IFG = 0;
 }
