@@ -409,6 +409,9 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 			debug_puts("data_length: ");
 			debug_puthex(data_length);
 			debug_nl();
+			debug_puts("State: ");
+			debug_puthex(tcb.tcp_state);
+			debug_nl();
 			if (flags & TCP_RST) {
 				return;
 			} else {
@@ -556,6 +559,15 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 			mem_write(tcb_id, tcb_no * sizeof(struct tcb), &tcb,
 					sizeof(struct tcb));
 			tcb.callback(tcb_no, tcb.tcp_state, 0, NULL, NULL);
+		}
+		if (flags & TCP_ACK) {
+			tcb.tcp_rcv_nxt = seqNo + data_length;
+			/* Update TCB */
+			mem_write(tcb_id, tcb_no * sizeof(struct tcb), &tcb,
+					sizeof(struct tcb));
+		}
+		if (data_length > 0) {
+			tcb.callback(tcb_no, tcb.tcp_state, data_length, dataCb, priv);
 		}
 		break;
 	case TCP_STATE_LAST_ACK:
