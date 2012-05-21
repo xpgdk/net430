@@ -84,6 +84,7 @@ const static char httpResponseHeader[] = "HTTP/1.1 200 OK\r\n"
 		"<body>"
 		"Request counter: $USAGE_COUNTER$<br>"
 		"Signal counter: $REQUEST_COUNTER$<br>"
+		"Last battery level: $BATTERY_LEVEL$<br>"
 		"</body></html>";
 
 const static char httpRequest[] = "GET /post-notify.php HTTP/1.0\r\n"
@@ -94,6 +95,7 @@ static bool sendSignal = false;
 
 uint16_t requestCounter = 0;
 uint16_t notificationCounter = 0;
+uint16_t batLevel = 0;
 
 #define PACKET_BAT_LEVEL 	0xF1
 #define PACKET_ACK			0xF2
@@ -149,6 +151,8 @@ void tcp_send_template_data(const char *buf, uint16_t count) {
 					tcp_send_int(requestCounter);
 				} else if (strncmp(buf, "REQUEST_COUNTER", 15) == 0) {
 					tcp_send_int(notificationCounter);
+				} else if (strncmp(buf, "BATTERY_LEVEL", 13) == 0) {
+					tcp_send_int(batLevel);
 				}
 				e++;
 			}
@@ -280,10 +284,14 @@ int main(void) {
 				debug_puthex(rf12_data[0]);
 				debug_nl();
 				if (rf12_data[0] == PACKET_SIGNAL) {
+					batLevel = rf12_data[1] << 8 | rf12_data[2];
 					debug_puts("BAT LEVEL: ");
-					debug_puts(rf12_data + 1);
+					debug_puthex(batLevel);
+					//debug_puts(rf12_data + 1);
 					debug_nl();
 					sendSignal = true;
+				} else if( rf12_data[0] == PACKET_BAT_LEVEL) {
+					batLevel = rf12_data[1] << 8 | rf12_data[2];
 				}
 			}
 		}
