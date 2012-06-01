@@ -140,6 +140,8 @@ void net_send_replace_checksum(uint16_t checksum);
 void net_send_at_offset(uint16_t offset, uint16_t length);
 uint16_t net_get_length(void);
 uint16_t net_get_time(void);
+void net_main(void);
+void net_init_low(void);
 
 /* Send IPv6 header and perform checksum calculation according to the
    pseudo header used by UDP, TCP, and ICMP */

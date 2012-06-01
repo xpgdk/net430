@@ -289,6 +289,8 @@ bool is_null_mac(const uint8_t *mac) {
 }
 
 void net_init(const uint8_t *mac) {
+	net_init_low();
+
 	doLookup = false;
 	debug_puts("MEM FREE:");
 	debug_puthex(mem_free());

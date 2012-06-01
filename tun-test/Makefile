@@ -1,7 +1,7 @@
 IP430_DIR=../ip430
 IP430_A=$(IP430_DIR)/ip430.a
-CFLAGS=-std=gnu99 -g -O0 -DHAVE_TCP -I$(IP430_DIR) -DUDP_LOG
-OBJS=tun.o mem_file.o debug.o main.o
+CFLAGS=-std=gnu99 -g -O0 -DHAVE_TCP -I$(IP430_DIR) -DSTDOUT_LOG
+OBJS=tun.o mem_file.o debug.o main.o stack-main.o
 TEST_OBJS=test_tcp.o test_main.o mem_file.o debug.o tun.o test_stack.o
 
 tun: $(IP430_A) $(OBJS)
