@@ -4,10 +4,12 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 #include "spi.h"
 #include "uart.h"
 #include "stack.h"
 #include "mem.h"
+#include "cpu.h"
 
 #define TX_START	(0x1FFF - 0x600)
 #define RX_END		(TX_START-1)
@@ -284,6 +286,7 @@ void enc_init(const uint8_t *mac) {
 	enc_switch_bank(0);
 
 	uint8_t reg;
+	delayMs(500);
 	do {
 		reg = READ_REG(ENC_ESTAT);
 		debug_puthex(reg);
@@ -542,7 +545,7 @@ void net_send_deferred(int16_t id, uint8_t const *dstMac) {
 	uint8_t control = 0x00; // USE MACON3 defaults
 	net_send_data(&control, 1);
 
-	net_send_data(&header, sizeof(struct etherheader));
+	net_send_data((const uint8_t*)&header, sizeof(struct etherheader));
 
 	/* Next, read data from secondary storage to ENC26J80 */
 	uint8_t buf[50];
