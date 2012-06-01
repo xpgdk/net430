@@ -260,15 +260,6 @@ void enc_set_mac_addr(const uint8_t *mac_addr) {
 	WRITE_REG(ENC_MAADR6, mac_addr[5]);
 }
 
-void print_int(const char *name, uint16_t v) {
-	char buf[10];
-	itoa(v, buf, 16);
-	debug_puts(name);
-	debug_puts(": ");
-	debug_puts(buf);
-	debug_puts("\r\n");
-}
-
 void enc_write_packet_data(const uint8_t *buf, uint16_t count) {
 	enc_wbm(buf, count);
 }
@@ -286,17 +277,16 @@ void enc_init(const uint8_t *mac) {
 	enc_switch_bank(0);
 
 	uint8_t reg;
-	delayMs(500);
 	do {
 		reg = READ_REG(ENC_ESTAT);
-		debug_puthex(reg);
-		debug_nl();
 		delayMs(200);
 	} while ((reg & ENC_ESTAT_CLKRDY) == 0);
 
+#if 0
 	debug_puts("Silicon Revision: ");
 	debug_puthex(READ_REG(ENC_EREVID));
 	debug_nl();
+#endif
 
 	//SET_REG_BITS(ENC_ECON1, ENC_ECON1_TXRST | ENC_ECON1_RXRST);
 	CLEAR_REG_BITS(ENC_ECON1, ENC_ECON1_RXEN);
@@ -306,36 +296,12 @@ void enc_init(const uint8_t *mac) {
 	enc_set_rx_area(0x000, RX_END);
 
 	uint16_t phyreg = enc_phy_read(ENC_PHSTAT2);
-	debug_puts("PHSTAT2: ");
-	debug_puthex(phyreg);
-	debug_nl();
 	phyreg &= ~ENC_PHSTAT2_DPXSTAT;
-	debug_puthex(phyreg);
-	debug_nl();
 	enc_phy_write(ENC_PHSTAT2, phyreg);
 
-	phyreg = enc_phy_read(ENC_PHSTAT2);
-	debug_puts("PHSTAT2: ");
-	debug_puthex(phyreg);
-	debug_nl();
-
 	phyreg = enc_phy_read(ENC_PHCON1);
-	debug_puts("PHCON1: ");
-	debug_puthex(phyreg);
-	debug_nl();
 	phyreg &= ~ENC_PHCON_PDPXMD;
-	debug_puts("PHCON1: ");
-	debug_puthex(phyreg);
-	debug_nl();
 	enc_phy_write(ENC_PHCON1, phyreg);
-
-#if 0
-	print_int("ERXSTL", READ_REG(ENC_ERXSTL));
-	print_int("ERXSTH", READ_REG(ENC_ERXSTH));
-
-	print_int("ERXNDL", READ_REG(ENC_ERXNDL));
-	print_int("ERXNDH", READ_REG(ENC_ERXNDH));
-#endif
 
 	/* Setup receive filter to receive
 	 * broadcast, multicast and unicast to the given MAC */
