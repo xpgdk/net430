@@ -1,5 +1,5 @@
 #include <msp430.h>
-#include "net430.h"
+#include <net430.h>
 
 const uint8_t mac_addr[] = { 0xea, 0x75, 0xbf, 0x72, 0x0f, 0x3d };
 
