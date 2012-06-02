@@ -4,7 +4,7 @@ include $(NET430_DIR)/net430.mk
 PROG=miniweb
 MCU=-mmcu=msp430g2553
 CFLAGS=$(MCU) -std=gnu99 -Os -I$(PWD) -I$(NET430_DIR) -I$(IP430_DIR) -DHAVE_TCP
-OBJS=main.o
+OBJS=main.o temp_sensor.o
 CC=msp430-gcc
 AR=msp430-ar
 
