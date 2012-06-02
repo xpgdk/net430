@@ -13,7 +13,8 @@ const static char httpResponseHeader[] = "HTTP/1.1 200 OK\r\n"
                 "Server: net430\r\n"
                 "Content-Type: application/json\r\n\r\n"
                 "{'time': $NET_TIME$,"
-                " 'temperature': $TEMP$"
+                " 'temperature': $TEMP$,"
+                " 'requestPath': '$REQUEST$'"
                 "}";
 
 enum HttpState {
@@ -23,10 +24,11 @@ enum HttpState {
   GOT_PARTIAL_REQUEST
 };
 
-static enum HttpState   httpState = IDLE;
+static enum HttpState   httpState = CLOSED;
 static int              responseBufferId;
 static uint16_t         temperature;
 static uint16_t         last_measurement = -1;
+static char             requestPath[10];
 
 void tcp_send_int(uint16_t i) {
   uint8_t buf[5] = { ' ', ' ', ' ', ' ', ' ' };
@@ -66,6 +68,8 @@ void tcp_send_template_data(const char *buf, uint16_t count) {
           tcp_send_int(temperature/1364);
           tcp_send_data(".", 1);
           tcp_send_int((temperature%1364)/136);
+        } else if (strncmp(buf, "REQUEST", 7) == 0) {
+          tcp_send_data(requestPath, strlen(requestPath));
         }
         e++;
       }
@@ -75,11 +79,33 @@ void tcp_send_template_data(const char *buf, uint16_t count) {
 }
 
 void server_callback(int socket, uint8_t new_state, uint16_t count, DATA_CB data, void *priv) {
-  if( count > 0 ) {
+  if( count > 0 && httpState != GOT_REQUEST) {
     uint8_t buf[10];
     uint16_t s;
-    s = data(buf, 10, priv);
-    httpState = GOT_REQUEST;
+
+    // First bytes are request
+    s = data(buf, 4, priv);
+    if( strncmp(buf, "GET", 3) == 0 ) {
+      debug_puts("GET request");
+      debug_nl();
+      httpState = GOT_REQUEST;
+
+      // Get path, we only support 10 bytes of path.
+      // If we don't get the separating whitespace in there, we simply ignore the rest
+      s = data(requestPath, 10, priv);
+      char *sep = strchr(requestPath, ' ');
+      if (sep != NULL) {
+        *sep = '\0';
+      } else {
+        requestPath[10] = '\0';
+      }
+      debug_puts(requestPath);
+      debug_nl();
+    } else {
+      debug_puts("Unknown request: ");
+      debug_puts(buf);
+      debug_nl();
+    }
   }
 
   if( new_state == TCP_STATE_CLOSED ) {
