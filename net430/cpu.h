@@ -1,5 +1,6 @@
 #include "config.h"
 #include <msp430.h>
+#include <stdint.h>
 
 void delayMs(uint16_t ms);
 
