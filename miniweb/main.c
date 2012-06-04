@@ -127,6 +127,7 @@ int main(void) {
 
     if (httpState == CLOSED) {
       tcp_listen(server_sock, 80);
+      httpState = IDLE;
     } else if( httpState == GOT_REQUEST ) {
       tcp_send_start(server_sock);
       tcp_send_template_data(httpResponseHeader, sizeof(httpResponseHeader)-1);
