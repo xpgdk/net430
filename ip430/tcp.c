@@ -216,8 +216,6 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 	uint8_t buf[4];
 	CHECK_SP("handle_tcp, entry: ");
 #ifdef DEBUG_TCP
-	PRINT_SP("in handle_tcp: ");
-
 	debug_puts("TCP");
 	debug_nl();
 #endif
@@ -334,6 +332,9 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 	debug_puts("State: ");
 	debug_puthex(tcb.tcp_state);
 	debug_nl();
+        debug_puts("TCB: ");
+        debug_puthex(tcb_no);
+        debug_nl();
 #endif
 
 	if (tcb.tcp_state == TCP_STATE_NONE || tcb.tcp_state == TCP_STATE_CLOSED) {
@@ -478,6 +479,11 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 			tcp_send_packet(&tcb, TCP_SYN | TCP_ACK);
 			net_tcp_end_packet(&tcb);
 			tcb.tcp_snd_nxt++; // Due to SYN
+#if DEBUG_TCP
+			debug_puts("New state: ");
+			debug_puthex(tcb.tcp_state);
+			debug_nl();
+#endif
 			/* Update TCB */
 			mem_write(tcb_id, tcb_no * sizeof(struct tcb), &tcb,
 					sizeof(struct tcb));
