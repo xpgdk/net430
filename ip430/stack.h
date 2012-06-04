@@ -5,12 +5,14 @@
 #include <stdbool.h>
 #include "debug.h"
 
+#if 0
 #undef DEBUG_IPV6
 #undef DEBUG_ICMP
 #undef VALIDATE_STACK
 #undef DBEUG_STACK
 #undef DEBUG_TCP
 #undef DEBUG_CHECKSUM
+#endif
 
 #if defined(VALIDATE_STACK)
 extern uint16_t _end;
