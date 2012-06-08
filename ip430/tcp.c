@@ -416,7 +416,10 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 			if (flags & TCP_RST) {
 				return;
 			} else {
-				tcp_send_packet(&tcb, TCP_ACK);
+				int send_flags = TCP_ACK;
+				if( flags & TCP_SYN)
+					send_flags |= TCP_SYN;
+				tcp_send_packet(&tcb, send_flags);
 				net_tcp_end_packet(&tcb);
 			}
 			return;
