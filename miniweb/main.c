@@ -30,8 +30,8 @@ static uint16_t         temperature;
 static uint16_t         last_measurement = -1;
 static char             requestPath[10];
 
-void tcp_send_int(uint16_t i) {
-  uint8_t buf[5] = { ' ', ' ', ' ', ' ', ' ' };
+void tcp_send_int(int socket, uint16_t i) {
+  uint8_t buf[7] = { ' ', ' ', ' ', ' ', ' ', ' ', ' ' };
   uint8_t count;
 
   itoa(i, buf, 10);
@@ -39,10 +39,10 @@ void tcp_send_int(uint16_t i) {
   // Count valid chars
   for(count=0; buf[count] >= 48 && buf[count] <= 57; count++);
 
-  tcp_send_data(buf, count);
+  tcp_send_data(socket, buf, count);
 }
 
-void tcp_send_template_data(const char *buf, uint16_t count) {
+void tcp_send_template_data(int socket, const char *buf, uint16_t count) {
   const char *end = buf + count;
   while (buf < end) {
     const char *p = strchr(buf, '$');
@@ -51,7 +51,7 @@ void tcp_send_template_data(const char *buf, uint16_t count) {
       p = end;
     }
 
-    tcp_send_data(buf, p - buf);
+    tcp_send_data(socket, buf, p - buf);
     buf = p;
 
     if (p != end) {
@@ -63,13 +63,13 @@ void tcp_send_template_data(const char *buf, uint16_t count) {
       } else {
         // Match is between buf and e
         if (strncmp(buf, "NET_TIME", 8) == 0) {
-          tcp_send_int(net_get_time());
+          tcp_send_int(socket, net_get_time());
         } else if (strncmp(buf, "TEMP", 4) == 0) {
-          tcp_send_int(temperature/1364);
-          tcp_send_data(".", 1);
-          tcp_send_int((temperature%1364)/136);
+          tcp_send_int(socket, temperature/1364);
+          tcp_send_data(socket, ".", 1);
+          tcp_send_int(socket, (temperature%1364)/136);
         } else if (strncmp(buf, "REQUEST", 7) == 0) {
-          tcp_send_data(requestPath, strlen(requestPath));
+          tcp_send_data(socket, requestPath, strlen(requestPath));
         }
         e++;
       }
@@ -79,7 +79,7 @@ void tcp_send_template_data(const char *buf, uint16_t count) {
 }
 
 void server_callback(int socket, uint8_t new_state, uint16_t count, DATA_CB data, void *priv) {
-  if( count > 0 && httpState != GOT_REQUEST) {
+  if( count > 0 && httpState == IDLE) {
     uint8_t buf[10];
     uint16_t s;
 
@@ -118,7 +118,7 @@ int main(void) {
 
   responseBufferId = mem_alloc(20);
 
-  int server_sock = tcp_socket(server_callback);
+  int server_sock = tcp_socket(server_callback, 500);
 
   temp_sensor_init();
 
@@ -130,7 +130,7 @@ int main(void) {
       httpState = IDLE;
     } else if( httpState == GOT_REQUEST ) {
       tcp_send_start(server_sock);
-      tcp_send_template_data(httpResponseHeader, sizeof(httpResponseHeader)-1);
+      tcp_send_template_data(server_sock, httpResponseHeader, sizeof(httpResponseHeader)-1);
       tcp_send_end(server_sock);
       tcp_close(server_sock);
     }

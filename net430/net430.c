@@ -9,7 +9,7 @@
 #include "uart.h"
 #include "spi_mem.h"
 
-#define TIME_STEP	30 //seconds
+#define TIME_STEP	5 //seconds
 
 uint16_t timeValue = 0;
 

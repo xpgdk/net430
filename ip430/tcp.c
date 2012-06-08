@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #include "tcp.h"
 #include "stack.h"
@@ -129,6 +130,14 @@ void tcp_timeout(uint16_t timeValue) {
 		debug_puts(": ");
 #endif
 		mem_read(tcb_id, i * sizeof(struct tcb), &tcb, sizeof(struct tcb));
+		if (tcb.tcp_state != TCP_STATE_NONE && 
+		    tcb.tcp_state != TCP_STATE_CLOSED &&
+		    tcb.tcp_state != TCP_STATE_LISTEN &&
+		    tcb.has_retransmit && 
+		    tcp_compare_time(timeValue, tcb.retransmit_time) > 0
+		    ) {
+			tcp_retransmit(&tcb);
+		}
 #if 0
 		debug_puthex(tcb.tcp_state);
 		debug_nl();
@@ -179,6 +188,8 @@ void net_tcp_end_packet(struct tcb *tcb) {
 	CHECK_SP("net_tcp_end_packet: ");
 	if (length > 0) {
 		tcb->tcp_snd_nxt += length;
+	} else {
+		tcb->retransmit_time = net_get_time() + 2;
 	}
 
 	//net_send_replace_checksum(~checksum);
@@ -416,11 +427,7 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 			if (flags & TCP_RST) {
 				return;
 			} else {
-				int send_flags = TCP_ACK;
-				if( flags & TCP_SYN)
-					send_flags |= TCP_SYN;
-				tcp_send_packet(&tcb, send_flags);
-				net_tcp_end_packet(&tcb);
+				tcp_retransmit(&tcb);
 			}
 			return;
 		} else {
@@ -441,6 +448,11 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 				debug_nl();
 			}
 		}
+	}
+
+	if (flags & TCP_ACK) {
+		tcb.has_retransmit = false;
+		tcb.retransmit_used = 0;
 	}
 
 	switch (tcb.tcp_state) {
@@ -479,6 +491,7 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 			tcb.tcp_snd_una = tcp_initialSeqNo;
 			tcb.tcp_snd_nxt = tcp_initialSeqNo + 1;
 
+			tcb.retransmit_flags = TCP_ACK | TCP_SYN;
 			tcp_send_packet(&tcb, TCP_SYN | TCP_ACK);
 			net_tcp_end_packet(&tcb);
 			tcb.tcp_snd_nxt++; // Due to SYN
@@ -511,6 +524,7 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 			/* Update TCB */
 			mem_write(tcb_id, tcb_no * sizeof(struct tcb), &tcb,
 					sizeof(struct tcb));
+			tcb.callback(tcb_no, tcb.tcp_state, 0, NULL, NULL);
 			return;
 		}
 
@@ -524,11 +538,13 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 
 			if (tcp_compare(&tcb.tcp_snd_una, &tcb.tcp_snd_nxt) >= 0) {
 				tcb.tcp_state = TCP_STATE_ESTABLISHED;
+				tcb.retransmit_flags = TCP_ACK | TCP_SYN;
 				tcp_send_packet(&tcb, TCP_ACK);
 				net_tcp_end_packet(&tcb);
 			} else {
 				tcb.tcp_timeout = net_get_time() + 2 * TCP_MSL;
 				tcb.tcp_state = TCP_STATE_SYN_RECEIVED;
+				tcb.retransmit_flags = TCP_ACK | TCP_SYN;
 				tcp_send_packet(&tcb, TCP_ACK | TCP_SYN);
 				net_tcp_end_packet(&tcb);
 			}
@@ -653,7 +669,7 @@ void handle_tcp(uint8_t *macSource, uint8_t *sourceAddr, uint8_t *destIPAddr,
 	//printf("Packet contains %d bytes of data\n", data_length);
 }
 
-int tcp_socket(tcp_callback callback) {
+int tcp_socket(tcp_callback callback, uint16_t retransmit_size) {
 	struct tcb tcb;
 	int socket = -1;
 
@@ -667,6 +683,9 @@ int tcp_socket(tcp_callback callback) {
 			tcb.tcp_state = TCP_STATE_CLOSED;
 
 			tcb.callback = callback;
+			tcb.retransmit_size = retransmit_size;
+			tcb.retransmit_id = mem_alloc(retransmit_size);
+			tcb.has_retransmit = false;
 			socket = i;
 			mem_write(tcb_id, i * sizeof(struct tcb), (uint8_t*) &tcb,
 					sizeof(struct tcb));
@@ -687,37 +706,59 @@ void tcp_listen(int socket, uint16_t port) {
 			sizeof(struct tcb));
 }
 
-void tcp_send(int socket, const uint8_t *buf, uint16_t count) {
+bool tcp_send(int socket, const uint8_t *buf, uint16_t count) {
 	struct tcb tcb;
 	CHECK_SP("tcp_send: ");
 	mem_read(tcb_id, socket * sizeof(struct tcb), (uint8_t*) &tcb,
 			sizeof(struct tcb));
 
+	if(tcb.has_retransmit) {
+		return false;
+	}
+
+	tcb.has_retransmit = true;
+
+	tcb.retransmit_flags = TCP_ACK;
 	tcp_send_packet(&tcb, TCP_ACK);
 
+	tcp_add_retransmit(&tcb, buf, count);
 	net_send_data(buf, count);
 	calc_checksum(buf, count);
 	net_tcp_end_packet(&tcb);
 
 	mem_write(tcb_id, socket * sizeof(struct tcb), (uint8_t*) &tcb,
 			sizeof(struct tcb));
+	return true;
 }
 
-void tcp_send_start(int socket) {
+bool tcp_send_start(int socket) {
 	struct tcb tcb;
 	CHECK_SP("tcp_send_start: ");
 	mem_read(tcb_id, socket * sizeof(struct tcb), (uint8_t*) &tcb,
 			sizeof(struct tcb));
 
+	if(tcb.has_retransmit) {
+		return false;
+	}
+	tcb.has_retransmit = true;
+	tcb.retransmit_flags = TCP_ACK;
 	tcp_send_packet(&tcb, TCP_ACK);
 	mem_write(tcb_id, socket * sizeof(struct tcb), (uint8_t*) &tcb,
 			sizeof(struct tcb));
+	return true;
 }
 
-void tcp_send_data(const uint8_t *buf, uint16_t count) {
+void tcp_send_data(int socket, const uint8_t *buf, uint16_t count) {
 	CHECK_SP("tcp_send_data: ");
+	struct tcb tcb;
+	CHECK_SP("tcp_send_end: ");
+	mem_read(tcb_id, socket * sizeof(struct tcb), (uint8_t*) &tcb,
+			sizeof(struct tcb));
+	tcp_add_retransmit(&tcb, buf, count);
 	net_send_data(buf, count);
 	calc_checksum(buf, count);
+	mem_write(tcb_id, socket * sizeof(struct tcb), (uint8_t*) &tcb,
+			sizeof(struct tcb));
 }
 
 void tcp_send_end(int socket) {
@@ -738,6 +779,8 @@ void tcp_close(int socket) {
 	mem_read(tcb_id, socket * sizeof(struct tcb), (uint8_t*) &tcb,
 			sizeof(struct tcb));
 
+	tcb.has_retransmit = true;
+	tcb.retransmit_flags = TCP_FIN | TCP_ACK;
 	tcp_send_packet(&tcb, TCP_FIN | TCP_ACK);
 	net_tcp_end_packet(&tcb);
 	tcb.tcp_state = TCP_STATE_FIN_WAIT_2;
@@ -846,6 +889,26 @@ int8_t tcp_compare(uint32_t *no1, uint32_t *no2) {
 			return -1;
 		}
 	}
+}
+
+void tcp_add_retransmit(struct tcb *tcb, const char *buf, uint16_t len) {
+	uint16_t count = mem_write(tcb->retransmit_id, tcb->retransmit_used, buf, len);
+	tcb->retransmit_used += count;
+}
+
+void tcp_retransmit(struct tcb *tcb) {
+	int send_flags = TCP_ACK;
+	send_flags |= tcb->retransmit_flags;
+	tcp_send_packet(tcb, send_flags);
+	for(int i=0; i<tcb->retransmit_used; i+=20) {
+		char buf[20];
+		uint16_t count = mem_read(tcb->retransmit_id, i, buf, 20);
+		net_send_data(buf, count);
+		if( count < 20 ) {
+			break;
+		}
+	}
+	net_tcp_end_packet(tcb);
 }
 
 #endif
