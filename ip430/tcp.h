@@ -10,37 +10,37 @@
 #define TCP_ACK		(1<<4)
 #define TCP_URG		(1<<5)
 
-#define TCP_STATE_NONE				0
-#define TCP_STATE_CLOSED			1
-#define TCP_STATE_LISTEN			2
-#define TCP_STATE_SYN_SENT			3
+#define TCP_STATE_NONE			0
+#define TCP_STATE_CLOSED		1
+#define TCP_STATE_LISTEN		2
+#define TCP_STATE_SYN_SENT		3
 #define TCP_STATE_SYN_RECEIVED 		4
 #define TCP_STATE_ESTABLISHED		5
 #define TCP_STATE_CLOSE_WAIT		6
-#define TCP_STATE_LAST_ACK			7
+#define TCP_STATE_LAST_ACK		7
 #define TCP_STATE_FIN_WAIT_1		8
 #define TCP_STATE_FIN_WAIT_2		9
 #define	 TCP_STATE_TIME_WAIT		10
 
-#define TCP_MSL						2*60 // 2 minutes
+#define TCP_MSL				2*60 // 2 minutes
 
 typedef void (*tcp_callback)(int,  uint8_t, uint16_t, DATA_CB , void *);
 
 struct tcb {
-	uint8_t	 local_addr[16];
-	uint8_t  remote_addr[16];
-	uint16_t tcp_local_port;
-	uint16_t tcp_remote_port;
+	uint8_t		local_addr[16];
+	uint8_t  	remote_addr[16];
+	uint16_t 	tcp_local_port;
+	uint16_t 	tcp_remote_port;
 
-	uint32_t tcp_snd_una;
-	uint32_t tcp_snd_nxt;
+	uint32_t 	tcp_snd_una;
+	uint32_t 	tcp_snd_nxt;
 	//uint32_t tcp_snd_wnd;
 	//uint32_t tcp_iss;
 
-	uint32_t tcp_rcv_nxt;
+	uint32_t 	tcp_rcv_nxt;
 	//uint32_t tcp_rcv_wnd;
 	//uint32_t tcp_irs;
-	uint8_t	tcp_state;
+	uint8_t		tcp_state;
 
 	uint16_t	tcp_timeout;
 
@@ -69,6 +69,5 @@ void tcp_close(int socket);
 void tcp_send_start(int socket);
 void tcp_send_data(const uint8_t *buf, uint16_t count);
 void tcp_send_end();
-
 
 #endif
