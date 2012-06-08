@@ -7,7 +7,7 @@
 #include <mem.h>
 #include "temp_sensor.h"
 
-const uint8_t mac_addr[] = { 0xea, 0x75, 0xbf, 0x72, 0x0f, 0x3d };
+const uint8_t mac_addr[] = { 0x00, 0xC0, 0x033, 0x50, 0x48, 0x10 };
 
 const static char httpResponseHeader[] = "HTTP/1.1 200 OK\r\n"
                 "Server: net430\r\n"
