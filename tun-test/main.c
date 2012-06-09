@@ -23,7 +23,7 @@ main(int argc, char *argv[]) {
 	mem_init();
 	net_init(maca);
 
-	int server_socket = tcp_socket(server_socket_callback);
+	int server_socket = tcp_socket(server_socket_callback, 500);
 	tcp_listen(server_socket, 8000);
 
 	net_main();
