@@ -68,7 +68,7 @@ void tcp_retransmit(struct tcb *tcb);
 
 /* TCP API */
 int tcp_socket(tcp_callback callback, uint16_t retransmit_size);
-void tcp_connect(int socket, uint8_t *local_addr, uint8_t *remote_addr, uint16_t port);
+void tcp_connect(int socket, const uint8_t *local_addr, const uint8_t *remote_addr, uint16_t port);
 
 void tcp_listen(int socket, uint16_t port);
 bool tcp_send(int socket, const uint8_t *buf, uint16_t count);
