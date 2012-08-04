@@ -14,7 +14,7 @@
 #define TCP_STATE_CLOSED		1
 #define TCP_STATE_LISTEN		2
 #define TCP_STATE_SYN_SENT		3
-#define TCP_STATE_SYN_RECEIVED 		4
+#define TCP_STATE_SYN_RECEIVED		4
 #define TCP_STATE_ESTABLISHED		5
 #define TCP_STATE_CLOSE_WAIT		6
 #define TCP_STATE_LAST_ACK		7
@@ -51,6 +51,7 @@ struct tcb {
 	bool		has_retransmit;
 	uint16_t	retransmit_flags;
 	uint16_t	retransmit_time;
+	uint8_t		retransmit_count;
 };
 
 extern uint32_t tcp_initialSeqNo;

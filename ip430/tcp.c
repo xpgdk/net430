@@ -122,6 +122,10 @@ int tcp_compare_time(uint16_t t1, uint16_t t2) {
 
 void tcp_timeout(uint16_t timeValue) {
 	struct tcb tcb;
+#ifdef DEBUG_TCP
+	debug_puts("tcp_timeout enter");
+	debug_nl();
+#endif
 	for (int i = 0; i < TCB_COUNT; i++) {
 
 #if 0
@@ -137,6 +141,9 @@ void tcp_timeout(uint16_t timeValue) {
 		    tcp_compare_time(timeValue, tcb.retransmit_time) > 0
 		    ) {
 			tcp_retransmit(&tcb);
+			mem_write(tcb_id, i * sizeof(struct tcb), (uint8_t*) &tcb,
+						sizeof(struct tcb));
+			return;
 		}
 #if 0
 		debug_puthex(tcb.tcp_state);
@@ -166,6 +173,8 @@ void tcp_timeout(uint16_t timeValue) {
 				tcb.callback(i, tcb.tcp_state, 0, NULL, NULL);
 			}
 			break;
+		case TCP_STATE_FIN_WAIT_1:
+		case TCP_STATE_FIN_WAIT_2:
 		case TCP_STATE_SYN_RECEIVED:
 			if (tcp_compare_time(timeValue, tcb.tcp_timeout) >= 0) {
 				debug_puts("Moving to closed state");
@@ -178,7 +187,10 @@ void tcp_timeout(uint16_t timeValue) {
 			break;
 		}
 	}
-
+#ifdef DEBUG_TCP
+	debug_puts("tcp_timeout exit");
+	debug_nl();
+#endif
 }
 
 void net_tcp_end_packet(struct tcb *tcb) {
@@ -717,6 +729,7 @@ bool tcp_send(int socket, const uint8_t *buf, uint16_t count) {
 	}
 
 	tcb.has_retransmit = true;
+	tcb.retransmit_count = 0;
 
 	tcb.retransmit_flags = TCP_ACK;
 	tcp_send_packet(&tcb, TCP_ACK);
@@ -742,6 +755,7 @@ bool tcp_send_start(int socket) {
 	}
 	tcb.has_retransmit = true;
 	tcb.retransmit_flags = TCP_ACK;
+	tcb.retransmit_count = 0;
 	tcp_send_packet(&tcb, TCP_ACK);
 	mem_write(tcb_id, socket * sizeof(struct tcb), (uint8_t*) &tcb,
 			sizeof(struct tcb));
@@ -763,6 +777,10 @@ void tcp_send_data(int socket, const uint8_t *buf, uint16_t count) {
 
 void tcp_send_end(int socket) {
 	struct tcb tcb;
+#ifdef DEBUG_TCP
+	debug_puts("tcp_send_end enter");
+	debug_nl();
+#endif
 	CHECK_SP("tcp_send_end: ");
 	mem_read(tcb_id, socket * sizeof(struct tcb), (uint8_t*) &tcb,
 			sizeof(struct tcb));
@@ -771,15 +789,24 @@ void tcp_send_end(int socket) {
 
 	mem_write(tcb_id, socket * sizeof(struct tcb), (uint8_t*) &tcb,
 			sizeof(struct tcb));
+#ifdef DEBUG_TCP
+	debug_puts("tcp_send_end exit");
+	debug_nl();
+#endif
 }
 
 void tcp_close(int socket) {
 	struct tcb tcb;
+#ifdef DEBUG_TCP
+	debug_puts("tcp_close enter");
+	debug_nl();
+#endif
 	CHECK_SP("tcp_close: ");
 	mem_read(tcb_id, socket * sizeof(struct tcb), (uint8_t*) &tcb,
 			sizeof(struct tcb));
 
 	tcb.has_retransmit = true;
+	tcb.retransmit_count = 0;
 	tcb.retransmit_flags = TCP_FIN | TCP_ACK;
 	tcp_send_packet(&tcb, TCP_FIN | TCP_ACK);
 	net_tcp_end_packet(&tcb);
@@ -787,11 +814,19 @@ void tcp_close(int socket) {
 	tcb.tcp_snd_nxt++;
 	mem_write(tcb_id, socket * sizeof(struct tcb), (uint8_t*) &tcb,
 			sizeof(struct tcb));
+#ifdef DEBUG_TCP
+	debug_puts("tcp_close exit");
+	debug_nl();
+#endif
 }
 
 void tcp_connect(int socket, uint8_t *local_addr, uint8_t *remote_addr,
 		uint16_t port) {
 	struct tcb tcb;
+#ifdef DEBUG_TCP
+	debug_puts("tcp_connect enter");
+	debug_nl();
+#endif
 	CHECK_SP("tcp_connect: ");
 	mem_read(tcb_id, socket * sizeof(struct tcb), (uint8_t*) &tcb,
 			sizeof(struct tcb));
@@ -815,6 +850,10 @@ void tcp_connect(int socket, uint8_t *local_addr, uint8_t *remote_addr,
 	tcb.tcp_snd_nxt++;
 	mem_write(tcb_id, socket * sizeof(struct tcb), (uint8_t*) &tcb,
 			sizeof(struct tcb));
+#ifdef DEBUG_TCP
+	debug_puts("tcp_connect exit");
+	debug_nl();
+#endif
 }
 
 bool tcp_in_window(uint32_t *no, uint32_t *min, uint32_t *max) {
@@ -898,6 +937,20 @@ void tcp_add_retransmit(struct tcb *tcb, const char *buf, uint16_t len) {
 
 void tcp_retransmit(struct tcb *tcb) {
 	int send_flags = TCP_ACK;
+#ifdef DEBUG_TCP
+	debug_puts("tcp_retransmit enter");
+	debug_nl();
+#endif
+	tcb->retransmit_count++;
+	if( tcb->retransmit_count > 10 ) {
+#ifdef DEBUG_TCP
+		debug_puts("Re-transmit limit reached");
+		debug_nl();
+#endif
+		tcb->has_retransmit = false;
+		tcb->retransmit_used = 0;
+		return;
+	}
 	send_flags |= tcb->retransmit_flags;
 	tcp_send_packet(tcb, send_flags);
 	for(int i=0; i<tcb->retransmit_used; i+=20) {
@@ -909,6 +962,10 @@ void tcp_retransmit(struct tcb *tcb) {
 		}
 	}
 	net_tcp_end_packet(tcb);
+#ifdef DEBUG_TCP
+	debug_puts("tcp_retransmit exit");
+	debug_nl();
+#endif
 }
 
 #endif
