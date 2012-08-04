@@ -9,11 +9,11 @@
 #include "debug.h"
 #include "mem.h"
 
-#define RECV_WINDOW		1500
-#define TCB_COUNT 10
+#define RECV_WINDOW     1500
+#define TCB_COUNT       10
 
-static uint16_t tcb_id;
-uint32_t tcp_initialSeqNo;
+static uint16_t         tcb_id;
+uint32_t                tcp_initialSeqNo;
 
 /**
  TODO: Add retransmission queue and a timer tick to retransmit packages.
@@ -820,7 +820,7 @@ void tcp_close(int socket) {
 #endif
 }
 
-void tcp_connect(int socket, uint8_t *local_addr, uint8_t *remote_addr,
+void tcp_connect(int socket, const uint8_t *local_addr, const uint8_t *remote_addr,
 		uint16_t port) {
 	struct tcb tcb;
 #ifdef DEBUG_TCP

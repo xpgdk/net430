@@ -165,6 +165,10 @@ void tcp_send_template_data(const char *buf, uint16_t count) {
 uint16_t net_get_time(void) {
 	return timeValue;
 }
+
+void net_init_low(void) {
+}
+
 int main(void) {
 	cpu_init();
 	init_random();
