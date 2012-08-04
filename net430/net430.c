@@ -12,6 +12,7 @@
 #define TIME_STEP	5 //seconds
 
 uint16_t timeValue = 0;
+uint16_t lastTimeValue = -1;
 
 bool getRandomBit() {
 	ADC10CTL1 |= INCH_5;
@@ -75,9 +76,13 @@ void net430_init(const uint8_t *mac_addr) {
 	/* Initialize RFM-module */
 	//rf12_initialize(3, RF12_433MHZ, 33);
 
+        debug_puts("SPI MEM INIT Start");
 	spi_mem_init();
+        debug_puts("SPI MEM INIT Done");
 
+        debug_puts("ENC INIT Start");
 	enc_init(mac_addr);
+        debug_puts("ENC INIT Done");
 	net_init(mac_addr);
 
 #ifdef UDP_LOG
@@ -86,10 +91,13 @@ void net430_init(const uint8_t *mac_addr) {
 }
 
 void net430_tick(void) {
-    net_tick();
-    if (!enc_idle) {
-      enc_action();
-    }
+	if( lastTimeValue != timeValue ) {
+		lastTimeValue = timeValue;
+		net_tick();
+	}
+	if (!enc_idle) {
+		enc_action();
+	}
 }
 
 void __attribute__((interrupt TIMER0_A0_VECTOR))
