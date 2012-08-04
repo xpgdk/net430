@@ -278,6 +278,7 @@ int main(void) {
 			sendSignal = false;
 		}
 
+#if 1
 		if (rf12_recvDone()) {
 			if (rf12_crc == 0) {
 				debug_puts("Got RF12 packet: ");
@@ -295,6 +296,7 @@ int main(void) {
 				}
 			}
 		}
+#endif
 
 		if (enc_idle && !gotChar && rxstate == TXRECV) {
 			__bis_SR_register(CPUOFF | GIE);
@@ -320,7 +322,6 @@ PORT1_ISR(void) {
 void __attribute__((interrupt PORT2_VECTOR))
 PORT2_ISR(void) {
 	if (P2IFG & BIT5) {
-		//__bic_SR_register_on_exit(CPUOFF);
 		rf12_interrupt();
 	}
 	if (P2IFG & BIT1) {
