@@ -745,6 +745,10 @@ void handle_ipv6(uint8_t *macSource, uint16_t length, DATA_CB dataCb,
 	case PROTO_TCP:
 		handle_tcp(macSource, sourceAddr, destination, payload_length, dataCb,
 				priv);
+#ifdef DEBUG_TCP
+		debug_puts("handle_tcp done");
+		debug_nl();
+#endif
 		break;
 #endif
 	}
