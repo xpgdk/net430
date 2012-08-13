@@ -1,0 +1,20 @@
+This is a very simple proof-of-concept IPv6 stack that runs on low-memory
+MCUs by allowing the usage of an external SPI SRAM IC for all "big" structures.
+So, things like TCBs, MAC address list, etc. are stored in external SRAM
+rather than the primary MCU RAM.
+
+The code has tons of issues, but does work under the right circumstances.
+Currently implemented features are:
+- IPv6 Stateless autoconfiguration (based on router advertisments)
+- ICMP Ping
+- Simple TCP-stack
+- Microchip's ENC28J60 MAC/PHY
+
+Directory structure:
+
+ip430/	       The core IP-stack
+net430/	       MSP430 support code and drivers
+tun-test/      Test-code that uses a TAP-device under Linux
+no-app/	       Small application template
+miniweb/       Small web-server application
+lcd-server/    Test application which controls an HD44780 display
