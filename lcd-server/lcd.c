@@ -210,7 +210,7 @@ lcd_clock(void) {
   // As long as we run at 1MHz no delay is needed.
   // Otherwise we need to ensure a 1000ns delay here (actually only 450ns, but
   // the minimum clock-rise to clock-rise cycle is 1000ns).
-  delayMs(2);
+  //  delayMs(5);
   lcd_shift_val &= ~SR_CLOCK;
   lcd_shift_set(lcd_shift_val);
 }
