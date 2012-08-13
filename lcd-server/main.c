@@ -12,14 +12,17 @@ const uint8_t mac_addr[] = { 0x00, 0xC0, 0x033, 0x50, 0x48, 0x12 };
 
 const static char httpResponseHeader[] = "HTTP/1.1 200 OK\r\n"
   "Server: net430\r\n"
-  "Content-Type: application/json\r\n\r\n"
-  "{'time': $NET_TIME$,"
-  " 'temperature': $TEMP$,"
-  " 'requestPath': '$REQUEST$'"
-  "}";
+  "Content-Type: text/html\r\n\r\n"
+  "<html><head><title>NET430 LCD Server</title></head><body>"
+  "<p><b>Network Time:</b> $NET_TIME$</p>"
+  "<p><b>Temperature:</b> $TEMP$</p>"
+  "<p><b>SPI SRAM memory free:</b> $MEM_FREE$</p>"
+  "</body></html>";
 
 const static uint8_t CRLF_CRLF[] = {13,10,13,10};
 const static uint8_t CONTENT_LENGTH[] = "Content-Length: ";
+const static uint8_t MSG_PATH[] = "/msg/";
+
 
 enum HttpState {
   CLOSED = 0,
@@ -36,8 +39,6 @@ enum HttpState {
 static enum HttpState   httpState = CLOSED;
 static uint16_t		temperature;
 static uint16_t		last_measurement = -1;
-//static char             requestPath[10];
-static int		requestPathId;
 static uint8_t		contentLength;
 
 void tcp_send_int(int socket, uint16_t i) {
@@ -78,9 +79,8 @@ void tcp_send_template_data(int socket, const char *buf, uint16_t count) {
 	  tcp_send_int(socket, temperature/1364);
 	  tcp_send_data(socket, ".", 1);
 	  tcp_send_int(socket, (temperature%1364)/136);
-	} else if (strncmp(buf, "REQUEST", 7) == 0) {
-	  //tcp_send_data(socket, requestPath, strlen(requestPath));
-	  tcp_send_data_from_mem(socket, requestPathId, 0, 10);
+	} else if (strncmp(buf, "MEM_FREE", 8) == 0) {
+	  tcp_send_int(socket, mem_free());
 	}
 	e++;
       }
@@ -141,9 +141,46 @@ void server_callback(int socket, uint8_t new_state, uint16_t count, DATA_CB data
   if( count > 0 && httpState == RECEIVING_REQUEST ) {
     // First bytes are request
     s = data(buf, 4, priv);
-    if( strncmp(buf, "GET", 3) == 0 ||
-	strncmp(buf, "POST", 4) == 0 ) {
+
+    if( strncmp(buf, "GET", 3) == 0) {
       debug_puts("GET request");
+      debug_nl();
+      /* Use the path-information as text to display.
+	 As we read 4-bytes, we can just continue to read until the next
+	 whitespace.
+	 Remember the request format is:
+	 Method SP Request-URI SP HTTP-Version CRLF
+       */
+
+      /* Only show message if path is /msg/<MSG> */
+      match = 0;
+      while(s > 0 && buf[0] != ' ' && match < strlen(MSG_PATH)-1) {
+	s = data(buf, 1, priv);
+	if( buf[0] == MSG_PATH[match] ) {
+	  match++;
+	} else {
+	  match = 0;
+	}
+      }
+
+      if( match == strlen(MSG_PATH)-1 ) {
+	lcd_clear();
+	s = data(buf, 1, priv); // Read initial '/'
+	while(s > 0) {
+	  s = data(buf, 1, priv);
+	  lcd_putchar(buf[0]);
+	  debug_puthex(buf[0]);
+	  debug_nl();
+	  if( buf[0] == ' ' ) {
+	    break;
+	  }
+	}
+      }
+
+      /* Send back response and close connection */
+      httpState = SEND_RESPONSE;
+    } else if( strncmp(buf, "POST", 4) == 0 ) {
+      debug_puts("POST request");
       contentLength = 0;
       debug_nl();
       httpState = RECEIVING_HEADERS;
@@ -232,8 +269,6 @@ void server_callback(int socket, uint8_t new_state, uint16_t count, DATA_CB data
 
 int main(void) {
   net430_init(mac_addr);
-
-  requestPathId = mem_alloc(100);
 
   int server_sock = tcp_socket(server_callback, 500);
 
