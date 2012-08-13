@@ -11,12 +11,12 @@
 const uint8_t mac_addr[] = { 0x00, 0xC0, 0x033, 0x50, 0x48, 0x12 };
 
 const static char httpResponseHeader[] = "HTTP/1.1 200 OK\r\n"
-                "Server: net430\r\n"
-                "Content-Type: application/json\r\n\r\n"
-                "{'time': $NET_TIME$,"
-                " 'temperature': $TEMP$,"
-                " 'requestPath': '$REQUEST$'"
-                "}";
+  "Server: net430\r\n"
+  "Content-Type: application/json\r\n\r\n"
+  "{'time': $NET_TIME$,"
+  " 'temperature': $TEMP$,"
+  " 'requestPath': '$REQUEST$'"
+  "}";
 
 const static uint8_t CRLF_CRLF[] = {13,10,13,10};
 const static uint8_t CONTENT_LENGTH[] = "Content-Length: ";
@@ -69,20 +69,20 @@ void tcp_send_template_data(int socket, const char *buf, uint16_t count) {
       // Perform replacement
       const char *e = strchr(buf, '$');
       if (e == NULL) {
-        e = end;
+	e = end;
       } else {
-        // Match is between buf and e
-        if (strncmp(buf, "NET_TIME", 8) == 0) {
-          tcp_send_int(socket, net_get_time());
-        } else if (strncmp(buf, "TEMP", 4) == 0) {
-          tcp_send_int(socket, temperature/1364);
-          tcp_send_data(socket, ".", 1);
-          tcp_send_int(socket, (temperature%1364)/136);
-        } else if (strncmp(buf, "REQUEST", 7) == 0) {
+	// Match is between buf and e
+	if (strncmp(buf, "NET_TIME", 8) == 0) {
+	  tcp_send_int(socket, net_get_time());
+	} else if (strncmp(buf, "TEMP", 4) == 0) {
+	  tcp_send_int(socket, temperature/1364);
+	  tcp_send_data(socket, ".", 1);
+	  tcp_send_int(socket, (temperature%1364)/136);
+	} else if (strncmp(buf, "REQUEST", 7) == 0) {
 	  //tcp_send_data(socket, requestPath, strlen(requestPath));
 	  tcp_send_data_from_mem(socket, requestPathId, 0, 10);
-        }
-        e++;
+	}
+	e++;
       }
       buf = e;
     }
@@ -243,6 +243,7 @@ int main(void) {
   debug_nl();
 
   lcd_init(16, 1);
+  lcd_blink(false);
 
   while (true) {
     net430_tick();
