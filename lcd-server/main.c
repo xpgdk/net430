@@ -268,6 +268,10 @@ void server_callback(int socket, uint8_t new_state, uint16_t count, DATA_CB data
 }
 
 int main(void) {
+  /* Start by disabling the LCD power supply*/
+  P2DIR |= BIT0;
+  P2OUT &= ~BIT0;
+
   net430_init(mac_addr);
 
   int server_sock = tcp_socket(server_callback, 500);
@@ -277,6 +281,7 @@ int main(void) {
   debug_puts("main");
   debug_nl();
 
+  P2OUT |= BIT0;
   lcd_init(16, 1);
   lcd_blink(false);
 
